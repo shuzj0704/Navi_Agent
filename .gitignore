@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Data (simulation outputs, too large for git)
+data/
+
+# add docs
+# docs/
+
+# RL policy weights and robot URDF/mesh assets (download from external repos)
+# Policy: https://github.com/fan-ziqi/rl_sar/tree/main/policy
+# URDF/mesh: https://github.com/fan-ziqi/rl_sar_zoo
+src/sim_vln_outdoor/assets/policy/
+src/sim_vln_outdoor/assets/rl_sar_zoo/
+
+# PDF / Office documents (papers, proposals)
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+
+# Logs
+*.log
+output.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
