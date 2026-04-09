@@ -67,7 +67,7 @@ conda deactivate
     --headless
 ```
 
-CraftBench 场景数据（12 个城市街道 USD 场景）位于 `~/navigation/urban_verse/CraftBench/`，可通过 `--usd-path` 指定。
+CraftBench 场景数据（12 个城市街道 USD 场景）需单独下载，详见[第 4 节](#4-外部资源下载)。可通过 `--usd-path` 指定场景路径，或设置 `CRAFTBENCH_ROOT` 环境变量。
 
 ### 3.2 Isaac Sim — D435i 相机视角查看
 
@@ -121,14 +121,40 @@ python scripts/metaurban/single_trajectory.py
 
 采集结果保存在 `data/metaurban_test/`。
 
-## 4. 扩展新机器人
+## 4. 外部资源下载
+
+仿真模块依赖以下外部资源（已 gitignore，需手动下载）：
+
+```bash
+# 1. CraftBench 城市街道 USD 场景（12 个场景，来自 UrbanVerse）
+#    下载地址：https://huggingface.co/datasets/Oatmealliu/UrbanVerse-CraftBench
+#    默认存放路径：~/navigation/urban_verse/CraftBench/
+#    可通过环境变量 CRAFTBENCH_ROOT 自定义路径，或运行时用 --usd-path 指定
+huggingface-cli download Oatmealliu/UrbanVerse-CraftBench \
+    --repo-type dataset --local-dir ~/navigation/urban_verse/CraftBench
+
+# 2. RL policy 权重 + 配置
+git clone https://github.com/fan-ziqi/rl_sar.git /tmp/rl_sar
+cp -r /tmp/rl_sar/policy/* src/sim_vln_outdoor/assets/policy/
+
+# 3. 机器人 URDF/MJCF/mesh 描述包
+git clone https://github.com/fan-ziqi/rl_sar_zoo.git src/sim_vln_outdoor/assets/rl_sar_zoo/
+```
+
+如果 CraftBench 放在非默认路径，设置环境变量：
+
+```bash
+export CRAFTBENCH_ROOT=/your/custom/path/CraftBench
+```
+
+## 5. 扩展新机器人
 
 1. 将机器人描述包放入 `src/sim_vln_outdoor/assets/rl_sar_zoo/<robot>_description/`
 2. 将 policy 配置和权重放入 `src/sim_vln_outdoor/assets/policy/<robot>/`
 3. 在 `src/sim_vln_outdoor/robot/` 下参照 `go2w.py` / `go2w_policy.py` 新建对应模块
 4. `assets/` 中已包含 A1, B2, B2W, D1, G1, Go2, GR1T1, GR1T2, L4W4, Lite3, Tita 的 URDF 和 policy
 
-## 5. CraftBench 可用场景
+## 6. CraftBench 可用场景
 
 | ID | 场景描述 |
 |---|---|
