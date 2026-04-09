@@ -1,0 +1,9 @@
+# Large binary files -- avoid reading into context
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+
+# Office temp files
+.~*
+~$*
