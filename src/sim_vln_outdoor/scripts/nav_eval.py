@@ -40,9 +40,12 @@ sys.path.insert(0, _PACKAGE_ROOT)
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(_PACKAGE_ROOT))  # Navi_Agent/
 
+_CRAFTBENCH_ROOT = os.environ.get(
+    "CRAFTBENCH_ROOT",
+    os.path.expanduser("~/navigation/urban_verse/CraftBench"),
+)
 DEFAULT_USD = os.path.join(
-    os.path.expanduser("~/navigation/urban_verse"),
-    "CraftBench",
+    _CRAFTBENCH_ROOT,
     "scene_09_cbd_t_intersection_construction_sites",
     "Collected_export_version",
     "export_version.usd",
