@@ -1,0 +1,13 @@
+# Qwen3-VL-8B-Instruct vLLM server config (vision-language inference)
+# Override model_path / port / gpu via CLI flags in scripts/serve/start_qwen3vl.py
+model_path: /mnt/sda/szj/navi_dataset/checkpoints/Qwen3-VL-8B-Instruct/
+served_model_name: qwen3-vl
+port: 8004
+gpu: "2"
+host: 0.0.0.0
+max_model_len: 4096
+gpu_memory_utilization: 0.9
+trust_remote_code: true
+extra_args:
+  - --limit-mm-per-prompt
+  - image=1

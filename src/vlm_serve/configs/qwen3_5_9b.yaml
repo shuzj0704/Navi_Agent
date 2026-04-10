@@ -1,0 +1,13 @@
+# Qwen3.5-9B vLLM server config (text-only inference)
+# Override model_path / port / gpu via CLI flags in scripts/serve/start_qwen35.py
+model_path: /home/ps/workspace/zch/Qwen3.5-9B/
+served_model_name: qwen3.5
+port: 8003
+gpu: "1"
+host: 0.0.0.0
+max_model_len: 8192
+gpu_memory_utilization: 0.9
+trust_remote_code: true
+extra_args:
+  - --mm-processor-cache-gb
+  - "0"

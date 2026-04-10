@@ -6,20 +6,9 @@
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
+      "Bash(git --version)",
       "Read(//home/shu22/nvidia/isaacsim_5.1.0/**)",
-      "Read(//home/shu22/navigation/**)",
-      "Bash(mv src/env/ env/)",
-      "Bash(mv src/robot/ robot/)",
-      "Bash(mv src/__init__.py __init__.py)",
-      "Bash(rmdir src/)",
-      "Bash(rmdir /home/shu22/navigation/Navi_Agent/src/sim_vln_outdoor/src/joy)",
-      "Bash(rm -r /home/shu22/navigation/Navi_Agent/src/sim_vln_outdoor/src/__pycache__)",
-      "Bash(rmdir /home/shu22/navigation/Navi_Agent/src/sim_vln_outdoor/src/)",
-      "Bash(mv metaurban_single_trajectory.py metaurban/single_trajectory.py)",
-      "Bash(mv reorganize_refs.py utils/)",
-      "Bash(mv update_refs.py utils/)",
-      "Bash(mv app.py reference/)",
-      "Bash(git --version)"
+      "Read(//home/shu22/navigation/**)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
