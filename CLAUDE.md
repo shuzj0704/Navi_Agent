@@ -141,11 +141,48 @@ src/sim_vln_outdoor/
 
 自定义控制器继承 `NavController`，实现 `act(obs) -> Action`。输出保存到 `data/urbanverse/nav_eval/<timestamp>/`（trajectory.jsonl + summary.json + 可选帧图片）。详见 `src/sim_vln_outdoor/README.md`。
 
+## VLM 部署 `src/vlm_serve/`
+
+封装 vLLM 服务启动 + OpenAI client 调用，供 Teacher Model 标注、推理评估、交互测试统一复用。**新增需要调 VLM 的代码请直接 `from vlm_serve.client import VLMClient`，不要再写新的 OpenAI client 包装。**
+
+```
+src/vlm_serve/
+├── server.py            # VLLMServerConfig + build_command + launch + load_config
+├── client.py            # VLMClient: chat / chat_stream_text / chat_with_image
+└── configs/
+    ├── qwen3_5_9b.yaml  # 文本模型默认配置（GPU 1, 端口 8003）
+    └── qwen3_vl_8b.yaml # 视觉模型默认配置（GPU 2, 端口 8004）
+```
+
+入口脚本在 `scripts/serve/`，所有参数走 YAML，CLI 可覆盖 `--model-path / --port / --gpu / --max-model-len`。
+
+```bash
+# 启动 Qwen3.5-9B 服务（默认 GPU 1, 端口 8003）
+python scripts/serve/start_qwen35.py
+
+# 启动 Qwen3-VL-8B 服务（默认 GPU 2, 端口 8004）
+python scripts/serve/start_qwen3vl.py
+
+# 临时换 GPU/端口
+python scripts/serve/start_qwen35.py --gpu 0 --port 8013
+
+# 交互测试（默认连 Qwen3.5）
+python scripts/serve/chat_test.py
+
+# 交互测试 Qwen3-VL
+python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qwen3-vl
+```
+
+服务进程需在装了 vLLM 的 conda 环境（`lwy_swift`）下运行；client 调用方只需 `openai` 包，可在任意环境中执行。
+
 ## 脚本 `scripts/`
 
 | 脚本 | 用途 | 环境 |
 |------|------|------|
 | `scripts/metaurban/single_trajectory.py` | MetaUrban 单条轨迹采集（RGB + 位姿 + 动作） | `conda activate metaurban` |
+| `scripts/serve/start_qwen35.py` | 启动 Qwen3.5-9B vLLM 服务 | `conda activate lwy_swift` |
+| `scripts/serve/start_qwen3vl.py` | 启动 Qwen3-VL-8B-Instruct vLLM 服务 | `conda activate lwy_swift` |
+| `scripts/serve/chat_test.py` | 通用 vLLM 服务交互测试客户端 | 任意（仅需 openai 包） |
 | `scripts/utils/reorganize_refs.py` | 参考文献重组工具 | 任意 |
 | `scripts/utils/update_refs.py` | 参考文献更新工具 | 任意 |
 | `scripts/reference/app.py` | VLN Demo 参考脚本（外部依赖，不可直接运行） | — |

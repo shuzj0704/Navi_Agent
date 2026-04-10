@@ -13,17 +13,22 @@ Navi_Agent/
 │   ├── AMAP/                      # AMAP CV Lab 导航论文解读
 │   └── outdoor_paper/             # 室外导航相关论文解读
 ├── src/
-│   └── sim_vln_outdoor/           # Isaac Sim 室外仿真模块
-│       ├── scripts/               # 入口脚本（场景加载、机器人控制、相机视角、闭环评估）
-│       ├── nav/                   # 导航控制器接口（NavController ABC + 示例控制器）
-│       ├── env/                   # 仿真环境封装（IsaacSimEnv）
-│       ├── robot/                 # 机器人控制（Go2WRobot、Go2WPolicy）
-│       ├── data/view/             # 快照拼接视频工具（make_video.py）
-│       └── assets/
-│           ├── policy/            # RL policy 权重 + 配置（rl_sar 格式）
-│           └── rl_sar_zoo/        # 机器人 URDF/MJCF/mesh 描述包
+│   ├── sim_vln_outdoor/           # Isaac Sim 室外仿真模块
+│   │   ├── scripts/               # 入口脚本（场景加载、机器人控制、相机视角、闭环评估）
+│   │   ├── nav/                   # 导航控制器接口（NavController ABC + 示例控制器）
+│   │   ├── env/                   # 仿真环境封装（IsaacSimEnv）
+│   │   ├── robot/                 # 机器人控制（Go2WRobot、Go2WPolicy）
+│   │   ├── data/view/             # 快照拼接视频工具（make_video.py）
+│   │   └── assets/
+│   │       ├── policy/            # RL policy 权重 + 配置（rl_sar 格式）
+│   │       └── rl_sar_zoo/        # 机器人 URDF/MJCF/mesh 描述包
+│   └── vlm_serve/                 # VLM 部署模块（vLLM server + OpenAI client）
+│       ├── server.py              # VLLMServerConfig + launch
+│       ├── client.py              # VLMClient（chat / chat_stream_text / chat_with_image）
+│       └── configs/               # YAML 配置（qwen3_5_9b、qwen3_vl_8b）
 ├── scripts/
 │   ├── metaurban/                 # MetaUrban 数据采集脚本
+│   ├── serve/                     # vLLM 服务启动 + 交互测试入口
 │   ├── utils/                     # 文献整理等工具脚本
 │   └── reference/                 # 参考脚本（外部依赖，不可直接运行）
 ├── data/                          # 仿真采集数据（gitignore）
@@ -162,6 +167,53 @@ python scripts/metaurban/single_trajectory.py
 ```
 
 采集结果保存在 `data/metaurban_test/`。
+
+### 3.5 VLM 部署 — vLLM 服务 + 交互测试
+
+`src/vlm_serve/` 封装了 vLLM 服务启动和 OpenAI client 调用，供 Teacher Model 标注、推理评估、交互测试统一复用。所有参数走 YAML，CLI 可覆盖。
+
+**启动服务**（在装了 vLLM 的环境中，例如 `lwy_swift`）：
+
+```bash
+conda activate lwy_swift
+
+# 启动 Qwen3.5-9B（默认 GPU 1，端口 8003）
+python scripts/serve/start_qwen35.py
+
+# 启动 Qwen3-VL-8B-Instruct（默认 GPU 2，端口 8004）
+python scripts/serve/start_qwen3vl.py
+
+# 临时覆盖 GPU / 端口 / max_model_len
+python scripts/serve/start_qwen35.py --gpu 0 --port 8013 --max-model-len 16384
+```
+
+默认配置在 [src/vlm_serve/configs/](src/vlm_serve/configs/)，模型路径等长期参数改 YAML，临时调整走 CLI。
+
+**交互测试**（任意环境，仅需 `openai` 包）：
+
+```bash
+# 默认连 Qwen3.5（localhost:8003）
+python scripts/serve/chat_test.py
+
+# 连 Qwen3-VL
+python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qwen3-vl
+```
+
+**在自己的代码中调用**（Teacher 标注、推理 eval 等场景）：
+
+```python
+from vlm_serve.client import VLMClient
+
+# 文本对话
+client = VLMClient(base_url="http://localhost:8003/v1", model="qwen3.5")
+resp = client.chat(messages=[{"role": "user", "content": "你好"}])
+
+# 单图视觉推理
+vl_client = VLMClient(base_url="http://localhost:8004/v1", model="qwen3-vl")
+reply = vl_client.chat_with_image(prompt="描述这张图", image_path="rgb_0.png")
+```
+
+> 新增需要调 VLM 的代码请直接复用 `VLMClient`，不要再写新的 OpenAI client 包装。
 
 ## 4. 外部资源下载
 
