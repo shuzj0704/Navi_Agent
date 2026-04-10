@@ -30,6 +30,10 @@ def parse_args():
         "--headless", action="store_true",
         help="Run in headless mode (no GUI).",
     )
+    parser.add_argument(
+        "--gpu", type=int, default=0,
+        help="GPU device index for rendering (default: 0).",
+    )
     return parser.parse_args()
 
 
@@ -38,7 +42,8 @@ def main():
 
     from env import IsaacSimEnv
 
-    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless)
+    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless,
+                      gpu_id=args.gpu)
 
     print("[Info] Running simulation loop (Ctrl+C to exit)...")
     try:

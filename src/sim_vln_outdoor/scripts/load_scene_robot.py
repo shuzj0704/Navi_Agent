@@ -46,6 +46,10 @@ def parse_args():
         "--cmd-vel", type=float, nargs=3, default=[0.5, 0.0, 0.0],
         help="Velocity commands [vx, vy, vyaw].",
     )
+    parser.add_argument(
+        "--gpu", type=int, default=0,
+        help="GPU device index for rendering (default: 0).",
+    )
     return parser.parse_args()
 
 
@@ -62,6 +66,7 @@ def main():
         headless=args.headless,
         physics_dt=policy_dt,
         rendering_dt=policy_dt * policy_decimation,
+        gpu_id=args.gpu,
     )
 
     # --- Step 2: Create policy and robot (omni imports are now safe) ---

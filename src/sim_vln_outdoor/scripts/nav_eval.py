@@ -229,6 +229,10 @@ def parse_args():
         "--save-frames", action="store_true",
         help="Save RGB frame at each controller step.",
     )
+    parser.add_argument(
+        "--gpu", type=int, default=0,
+        help="GPU device index for rendering (default: 0).",
+    )
     return parser.parse_args()
 
 
@@ -239,7 +243,8 @@ def main():
 
     # 1. Create env (must happen before any omni imports)
     from env import IsaacSimEnv
-    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless)
+    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless,
+                      gpu_id=args.gpu)
 
     # 2. Create camera and pose
     camera = create_d435i_camera(args.camera_pos, args.camera_rot,

@@ -155,6 +155,10 @@ def parse_args():
         "--socket-port", type=int, default=None,
         help="Start a TCP socket server on this port for external pose input.",
     )
+    parser.add_argument(
+        "--gpu", type=int, default=0,
+        help="GPU device index for rendering (default: 0).",
+    )
     return parser.parse_args()
 
 
@@ -344,7 +348,8 @@ def main():
     args = parse_args()
 
     from env import IsaacSimEnv
-    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless)
+    env = IsaacSimEnv(usd_path=args.usd_path, headless=args.headless,
+                      gpu_id=args.gpu)
 
     camera = create_d435i_camera(args.camera_pos, args.camera_rot)
     pose = CameraPose(args.camera_pos, args.camera_rot)
