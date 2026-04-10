@@ -49,6 +49,48 @@ conda deactivate
 ./python.sh src/sim_vln_outdoor/scripts/<script>.py [args]
 ```
 
+### 远程服务器（SSH）运行 Isaac Sim
+
+通过 SSH 连接远程服务器运行 Isaac Sim 脚本时，需要额外准备：
+
+**1. 安装 xvfb（虚拟帧缓冲区）**
+
+Isaac Sim 的 GPU 渲染管线即使在 `--headless` 模式下也需要 X display。SSH 会话没有图形界面，需要 `xvfb-run` 提供虚拟显示：
+
+```bash
+# Ubuntu/Debian
+sudo apt install xvfb
+```
+
+**2. 安装 Isaac Sim Python 缺失依赖**
+
+Isaac Sim 自带的 Python 可能缺少部分依赖，需手动补装：
+
+```bash
+# 用 Isaac Sim 自带的 python.sh 安装（不是系统 pip）
+./python.sh -m pip install typing_extensions filelock fsspec
+```
+
+**3. 运行命令**
+
+所有 Isaac Sim 脚本前加 `xvfb-run -a`，用 `--gpu` 指定空闲 GPU（默认 0）：
+
+```bash
+# 远程 headless 运行（默认 GPU 0）
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
+    --headless --save-frames --max-steps 170
+
+# 指定 GPU 2 运行
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
+    --headless --save-frames --max-steps 170 --gpu 2
+
+# 其他脚本同理
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/load_scene.py --headless --gpu 2
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/load_scene_robot.py --headless --gpu 2
+```
+
+> 本地有图形界面时不需要 `xvfb-run`，直接运行即可。`--gpu` 默认为 0，单卡机器无需指定。
+
 ## 3. 快速开始
 
 ### 3.1 Isaac Sim — 场景加载与机器人仿真

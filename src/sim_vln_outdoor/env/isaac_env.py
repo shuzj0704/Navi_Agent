@@ -12,7 +12,8 @@ class IsaacSimEnv:
     """Wraps Isaac Sim application, USD scene loading, and World stepping."""
 
     def __init__(self, usd_path: str, headless: bool = False,
-                 physics_dt: float = 0.005, rendering_dt: float = 0.02):
+                 physics_dt: float = 0.005, rendering_dt: float = 0.02,
+                 gpu_id: int = 0):
         usd_path = os.path.abspath(usd_path)
         if not os.path.isfile(usd_path):
             print(f"[Error] USD file not found: {usd_path}")
@@ -22,7 +23,11 @@ class IsaacSimEnv:
 
         # SimulationApp must be created before any other omniverse imports
         from isaacsim import SimulationApp
-        self.app = SimulationApp({"headless": headless})
+        self.app = SimulationApp({
+            "headless": headless,
+            "multi_gpu": False,
+            "active_gpu": gpu_id,
+        })
 
         import omni.usd
         from omni.isaac.core import World
