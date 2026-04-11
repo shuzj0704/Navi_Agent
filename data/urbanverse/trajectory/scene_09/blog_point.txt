@@ -1,0 +1,6 @@
+# scene_09 sidewalk navigation route (position only, like a real map polyline)
+# format: [point N] x y z    (z is the camera height, in meters)
+[point 1] -693.5133185566787 496.8050450996168 2.0
+[point 2] -635.5133185566787 496.8050450996168 2.0
+[point 3] -635.5133185566787 485.3050450996168 2.0
+[point 4] -629.3150023850383 485.21512475952625 2.0

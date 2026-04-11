@@ -68,6 +68,13 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 - 脚本必须通过 Isaac Sim 自带 Python 运行（`./python.sh`），不可在 conda 环境中运行
 - `SimulationApp` 必须在所有 `omni.*` import 之前创建，`IsaacSimEnv` 已封装此约束
 - Policy joint order 与 Isaac Sim articulation DOF order 不同，`Go2WRobot` 内部通过 `joint_index_map` 做双向映射
+- `python.sh` wrapper 默认走 `/home/shu22/nvidia/isaacsim_5.1.0`；新机器需 `export ISAACSIM_ROOT=...` 覆盖
+- 用 VLM controller 前必须 `./python.sh -m pip install openai`，否则 `from vlm_serve.client import VLMClient` 会 ModuleNotFoundError
+
+### 全新服务器部署
+- 完整部署清单（系统依赖、Conda 环境、Isaac Sim wrapper、模型路径、xvfb、smoke test）见 [README.md 第 4 节](README.md#4-全新服务器部署清单)
+- **必须改的硬编码路径**：[python.sh](python.sh) `ISAACSIM_ROOT`、[src/vlm_serve/configs/qwen3_5_9b.yaml](src/vlm_serve/configs/qwen3_5_9b.yaml) `model_path/gpu`、[src/vlm_serve/configs/qwen3_vl_8b.yaml](src/vlm_serve/configs/qwen3_vl_8b.yaml) `model_path/gpu`
+- `data/` 整体被 gitignore，但 `data/urbanverse/trajectory/scene_*/blog_point.txt`（人工标注的导航路线 waypoint 文件）通过 `.gitignore` 例外规则**入库**；由它生成的 `dense_trajectory.json/.png` 不入库，每次拉下来后需要跑一次 `scripts/utils/interpolate_trajectory.py` 重新生成
 
 ## 仿真数据资源
 
@@ -104,10 +111,13 @@ src/sim_vln_outdoor/
 │   ├── load_scene.py            # 仅加载 USD 场景
 │   ├── load_scene_robot.py      # 场景 + Go2W + RL policy 完整 pipeline
 │   ├── load_scene_view.py       # D435i 相机视角渲染 + 键盘/Socket 控制
-│   └── nav_eval.py              # 闭环导航控制器评估
+│   ├── nav_eval.py              # 闭环导航控制器评估（通用，--controller 插件式）
+│   └── vlm_gps_nav.py           # GPS 引导 VLM 闭环导航（任务专属入口）
 ├── nav/                         # 导航控制器接口
 │   ├── controller.py            # NavController ABC + Observation / Action 定义
-│   └── demo_controllers.py      # ForwardOnly / RandomWalk 示例控制器
+│   ├── demo_controllers.py      # ForwardOnly / RandomWalk 示例控制器
+│   ├── vlm_controller.py        # 基础 VLM 控制器（仅看 RGB，无目标感知）
+│   └── gps_vlm_controller.py    # GPS 引导 VLM 控制器（RGB + 结构化文本 prompt）
 ├── env/
 │   └── isaac_env.py             # IsaacSimEnv: SimulationApp + USD 加载 + World
 ├── robot/
@@ -137,9 +147,40 @@ src/sim_vln_outdoor/
 # 自定义控制器，2Hz
 ./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
     --headless --controller "my_module:MyController" --controller-freq 2.0
+
+# VLM 控制器（先在另一个终端起 Qwen3-VL 服务，见下文「VLM 部署」一节）
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
+    --headless --save-frames --max-steps 100 --controller-freq 1.0 \
+    --controller "nav.vlm_controller:VLMNavController" \
+    --controller-kwargs '{"instruction":"explore the construction site, avoid barriers"}'
 ```
 
-自定义控制器继承 `NavController`，实现 `act(obs) -> Action`。输出保存到 `data/urbanverse/nav_eval/<timestamp>/`（trajectory.jsonl + summary.json + 可选帧图片）。详见 `src/sim_vln_outdoor/README.md`。
+自定义控制器继承 `NavController`，实现 `act(obs) -> Action`。`--controller-kwargs` 接 JSON 字符串传给 `__init__`。输出保存到 `data/urbanverse/nav_eval/<timestamp>/`（trajectory.jsonl + summary.json + 可选帧图片）。详见 `src/sim_vln_outdoor/README.md`。
+
+`nav.vlm_controller.VLMNavController` 是内置的 VLM 闭环控制器：每步把 RGB 帧发给 vLLM 服务，解析 `FORWARD / TURN_LEFT / TURN_RIGHT / STOP` 关键字回复转成 `Action`。Isaac Sim 自带 Python 需先 `./python.sh -m pip install openai`。输入图保存在 `data/urbanverse/vlm_inputs/<timestamp>/` 便于 debug。
+
+### vlm_gps_nav.py — GPS 引导 VLM 闭环导航
+
+`nav_eval.py` 的 VLM 控制器只看图,无目标感知。`vlm_gps_nav.py` 是任务专属入口：从 `dense_trajectory.json` 加载预先规划的 GPS 路径,初始 pose 自动取轨迹起点,每步给 VLM **FPV 图像 + 结构化文本 prompt**(当前 pose / 进度 / 前 5 个 lookahead 点 ego 坐标 / next turn 提示 / 距终点距离),让 VLM 沿路径走到终点。
+
+```bash
+# 1. scripts/utils/interpolate_trajectory.py 把稀疏 waypoint 文件稠密化
+python scripts/utils/interpolate_trajectory.py \
+    --input data/urbanverse/trajectory/scene_09/blog_point.txt \
+    --step 0.5 --visualize
+
+# 2. 起 Qwen3-VL 服务（另一个终端，lwy_swift 环境）
+python scripts/serve/start_qwen3vl.py
+
+# 3. 跑闭环
+xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/vlm_gps_nav.py \
+    --headless --max-steps 200 --controller-freq 1.0 \
+    --trajectory data/urbanverse/trajectory/scene_09/dense_trajectory.json
+```
+
+输出在 `data/urbanverse/vlm_gps_nav/<timestamp>/`：`frames/frame_*.png`(FPV 帧) + `vlm_io.jsonl`(每步完整 prompt+reply+pose,可审计) + `trajectory.jsonl` + `summary.json`(success/final_dist/total_steps) + `nav.mp4`(30fps 视频)。控制器实现在 `nav.gps_vlm_controller.GPSVLMNavController`,核心 helper：`_world_to_ego`(world→ego 坐标变换)、`_detect_next_turn`(在 lookahead 内找 bearing 突变,转人话 `"turn right in 1.4m"`)、`_update_progress`(单调 closest-point 推进,防回退)。
+
+`blog_point.txt` 是 position-only 格式(`[point N] x y z`),跟真实导航 APP 的 polyline 一致 — 不带朝向。机器人初始 yaw 由稠密路径第一段的 `atan2` 推出,默认"被放下时已经面朝路线";加 `--start-yaw <deg>` 可强制覆盖以测试"初始反向调头"等场景。
 
 ## VLM 部署 `src/vlm_serve/`
 
@@ -183,6 +224,7 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 | `scripts/serve/start_qwen35.py` | 启动 Qwen3.5-9B vLLM 服务 | `conda activate lwy_swift` |
 | `scripts/serve/start_qwen3vl.py` | 启动 Qwen3-VL-8B-Instruct vLLM 服务 | `conda activate lwy_swift` |
 | `scripts/serve/chat_test.py` | 通用 vLLM 服务交互测试客户端 | 任意（仅需 openai 包） |
+| `scripts/utils/interpolate_trajectory.py` | 把稀疏 waypoint 文件线性插值成稠密轨迹 JSON（含 PIL 可视化） | 任意（numpy + Pillow） |
 | `scripts/utils/reorganize_refs.py` | 参考文献重组工具 | 任意 |
 | `scripts/utils/update_refs.py` | 参考文献更新工具 | 任意 |
 | `scripts/reference/app.py` | VLN Demo 参考脚本（外部依赖，不可直接运行） | — |
