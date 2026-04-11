@@ -180,12 +180,17 @@ def apply_action(pose, action):
 
 # ── Controller loading ─────────────────────────────────────────────────────
 
-def load_controller(spec):
-    """Load a NavController from a 'module.path:ClassName' string."""
+def load_controller(spec, kwargs=None):
+    """Load a NavController from a 'module.path:ClassName' string.
+
+    Args:
+        spec: Import spec like "nav.demo_controllers:ForwardOnlyController".
+        kwargs: Optional dict of keyword arguments passed to the constructor.
+    """
     module_path, class_name = spec.rsplit(":", 1)
     mod = importlib.import_module(module_path)
     cls = getattr(mod, class_name)
-    return cls()
+    return cls(**(kwargs or {}))
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────
@@ -212,6 +217,11 @@ def parse_args():
         "--controller", type=str,
         default="nav.demo_controllers:ForwardOnlyController",
         help="Controller class as 'module.path:ClassName'.",
+    )
+    parser.add_argument(
+        "--controller-kwargs", type=str, default=None,
+        help='JSON string of kwargs for the controller __init__, e.g. '
+             '\'{"instruction":"find the construction site"}\'.',
     )
     parser.add_argument(
         "--max-steps", type=int, default=1000,
@@ -252,9 +262,14 @@ def main():
     pose = CameraPose(args.camera_pos, args.camera_rot)
 
     # 3. Load controller
-    controller = load_controller(args.controller)
+    ctrl_kwargs = (
+        json.loads(args.controller_kwargs) if args.controller_kwargs else None
+    )
+    controller = load_controller(args.controller, ctrl_kwargs)
     controller.reset()
     print(f"[Info] Controller: {args.controller}")
+    if ctrl_kwargs:
+        print(f"[Info] Controller kwargs: {ctrl_kwargs}")
 
     # 4. Output directory
     if args.save_dir is None:
