@@ -36,6 +36,9 @@ src/sim_vln_outdoor/assets/rl_sar_zoo/
 *.xlsx
 *.pptx
 
+# Navigation output (visualizations, eval results)
+output/
+
 # Logs
 *.log
 output.log

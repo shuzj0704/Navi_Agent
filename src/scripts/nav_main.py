@@ -28,7 +28,7 @@ from naviagent.vlm.vlm_config import load_nav_vlm_config
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
-OUTPUT_DIR = "/home/nuc/vln/output/nav"
+OUTPUT_DIR = os.path.join(_VLN_ROOT, "Navi_Agent", "output", "nav")
 DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口，停在该出口前。"
 DEFAULT_SIM_URL = "http://localhost:5100"
 

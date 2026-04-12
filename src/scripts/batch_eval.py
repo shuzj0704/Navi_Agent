@@ -214,7 +214,8 @@ def main():
     parser.add_argument("--steps", type=int, default=100)
     parser.add_argument("--mock", action="store_true")
     parser.add_argument("--save-vis", action="store_true")
-    parser.add_argument("--output-dir", type=str, default="/home/nuc/vln/output/eval")
+    parser.add_argument("--output-dir", type=str,
+                        default=os.path.join(_VLN_ROOT, "Navi_Agent", "output", "eval"))
     parser.add_argument("--success-threshold", type=float, default=3.0)
     parser.add_argument("--no-planner", action="store_true")
     parser.add_argument("--plan-heartbeat", type=int, default=15)
