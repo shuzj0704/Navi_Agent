@@ -4,7 +4,7 @@ server:
   gpu_device_id: 0
 
 scenes:
-  base_dir: "/home/nuc/vln/data/scene_data/mp3d"
+  base_dir: "data/scene_data/mp3d"
   default_scene: null
 
 physics:

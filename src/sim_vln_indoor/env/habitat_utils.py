@@ -41,8 +41,8 @@ SENSOR_CONFIGS = {
 
 # ========== 路径常量 ==========
 
-SCENE_DIR = "/home/nuc/vln/data/scene_data/mp3d"
-VLM_API_URL = "http://192.168.1.137:8000/v1"
+SCENE_DIR = "data/scene_data/mp3d"
+VLM_API_URL = "http://10.100.0.1:8000/v1"
 
 
 # ========== Habitat 初始化 ==========

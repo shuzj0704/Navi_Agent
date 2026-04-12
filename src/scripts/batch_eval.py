@@ -13,11 +13,10 @@ VLN 批量评测脚本 (HTTP 模式)
 """
 
 import os, sys
-_VLN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-_SRC_ROOT = os.path.join(_VLN_ROOT, "Navi_Agent", "src")
-sys.path.insert(0, _VLN_ROOT)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_SRC_ROOT = os.path.join(_PROJECT_ROOT, "src")
 sys.path.insert(0, _SRC_ROOT)
-os.chdir(_VLN_ROOT)
+os.chdir(_PROJECT_ROOT)
 
 # 清除代理环境变量
 for _k in ("all_proxy", "ALL_PROXY", "http_proxy", "HTTP_PROXY",
@@ -38,8 +37,8 @@ from naviagent.vlm.vlm_config import load_nav_vlm_config
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
-DATASET_DIR = "/home/nuc/vln/data/vln_ce/R2R_VLNCE_v1-3"
-SCENE_DIR = "/home/nuc/vln/data/scene_data/mp3d"
+DATASET_DIR = os.path.join(_PROJECT_ROOT, "data", "vln_ce", "R2R_VLNCE_v1-3")
+SCENE_DIR = os.path.join(_PROJECT_ROOT, "data", "scene_data", "mp3d")
 DEFAULT_SIM_URL = "http://localhost:5100"
 
 SENSOR_CONFIGS = {
@@ -215,7 +214,7 @@ def main():
     parser.add_argument("--mock", action="store_true")
     parser.add_argument("--save-vis", action="store_true")
     parser.add_argument("--output-dir", type=str,
-                        default=os.path.join(_VLN_ROOT, "Navi_Agent", "output", "eval"))
+                        default=os.path.join(_PROJECT_ROOT, "output", "eval"))
     parser.add_argument("--success-threshold", type=float, default=3.0)
     parser.add_argument("--no-planner", action="store_true")
     parser.add_argument("--plan-heartbeat", type=int, default=15)
@@ -273,7 +272,7 @@ def main():
 
         yoloe_classes = None
         try:
-            yoloe = YOLOESegmentor(model_path="Navi_Agent/models/yoloe-11l-seg.pt")
+            yoloe = YOLOESegmentor(model_path="models/yoloe-11l-seg.pt")
             mapper = SemanticMapper(
                 segmentor=yoloe, overlap_threshold=0.3,
                 camera_height=1.5, camera_pitch_deg=-20.0,

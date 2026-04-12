@@ -27,7 +27,7 @@ class YOLOESegmentor:
     YOLOE open-vocabulary segmentation detector.
 
     Usage:
-        segmentor = YOLOESegmentor("Navi_Agent/models/yoloe-11l-seg.pt")
+        segmentor = YOLOESegmentor("models/yoloe-11l-seg.pt")
         segments = segmentor.segment(rgb)
     """
 
@@ -37,7 +37,7 @@ class YOLOESegmentor:
         "toilet", "sink", "bed", "shelf", "cabinet", "window", "TV",
     ]
 
-    def __init__(self, model_path="Navi_Agent/models/yoloe-11l-seg.pt", classes=None, conf=0.15):
+    def __init__(self, model_path="models/yoloe-11l-seg.pt", classes=None, conf=0.15):
         import os
         if not os.path.exists(model_path):
             raise FileNotFoundError(

@@ -12,11 +12,10 @@
 """
 
 import os, sys
-_VLN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-_SRC_ROOT = os.path.join(_VLN_ROOT, "Navi_Agent", "src")
-sys.path.insert(0, _VLN_ROOT)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_SRC_ROOT = os.path.join(_PROJECT_ROOT, "src")
 sys.path.insert(0, _SRC_ROOT)
-os.chdir(_VLN_ROOT)
+os.chdir(_PROJECT_ROOT)
 
 import numpy as np
 import cv2
@@ -28,7 +27,7 @@ from naviagent.vlm.vlm_config import load_nav_vlm_config
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
-OUTPUT_DIR = os.path.join(_VLN_ROOT, "Navi_Agent", "output", "nav")
+OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output", "nav")
 DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口，停在该出口前。"
 DEFAULT_SIM_URL = "http://localhost:5100"
 
@@ -81,7 +80,7 @@ def main():
 
     # 初始化组件
     dwa = DWAPlanner()
-    yoloe = YOLOESegmentor(model_path="Navi_Agent/models/yoloe-11l-seg.pt")
+    yoloe = YOLOESegmentor(model_path="models/yoloe-11l-seg.pt")
     print(f"YOLOE loaded. Detecting: {yoloe.classes}")
     mapper = SemanticMapper(
         segmentor=yoloe,

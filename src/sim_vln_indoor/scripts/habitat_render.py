@@ -4,11 +4,10 @@ Habitat-Sim 离线渲染器
 沿导航网格随机游走，渲染4视角图像，保存为视频和图片。
 """
 import os, sys
-_VLN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-_SRC_ROOT = os.path.join(_VLN_ROOT, "Navi_Agent", "src")
-sys.path.insert(0, _VLN_ROOT)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+_SRC_ROOT = os.path.join(_PROJECT_ROOT, "src")
 sys.path.insert(0, _SRC_ROOT)
-os.chdir(_VLN_ROOT)
+os.chdir(_PROJECT_ROOT)
 os.environ["MAGNUM_LOG"] = "quiet"
 os.environ["MAGNUM_GPU_VALIDATION"] = "OFF"
 
@@ -19,8 +18,8 @@ import math
 import json
 
 # ========== 配置 ==========
-SCENE_DIR = "/home/nuc/vln/data/scene_data/mp3d"
-OUTPUT_DIR = "/home/nuc/vln/output/render"
+SCENE_DIR = "data/scene_data/mp3d"
+OUTPUT_DIR = "output/render"
 FPS = 10
 MAX_STEPS = 200
 

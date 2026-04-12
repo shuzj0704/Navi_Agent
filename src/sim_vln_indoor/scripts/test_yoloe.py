@@ -1,10 +1,9 @@
 """YOLOE real-time segmentation test for indoor objects."""
 import os, sys
-_VLN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-_SRC_ROOT = os.path.join(_VLN_ROOT, "Navi_Agent", "src")
-sys.path.insert(0, _VLN_ROOT)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+_SRC_ROOT = os.path.join(_PROJECT_ROOT, "src")
 sys.path.insert(0, _SRC_ROOT)
-os.chdir(_VLN_ROOT)
+os.chdir(_PROJECT_ROOT)
 
 import cv2
 from ultralytics import YOLOE
@@ -17,7 +16,7 @@ CLASSES = [
 
 def main():
     # Load YOLOE segmentation model
-    model = YOLOE("Navi_Agent/models/yoloe-11l-seg.pt")
+    model = YOLOE("models/yoloe-11l-seg.pt")
     model.set_classes(CLASSES)
 
     # Open default camera

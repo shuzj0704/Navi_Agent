@@ -238,7 +238,7 @@ python src/scripts/batch_eval.py \
 
 ### 3.6 VLM 服务
 
-室内导航的 VLM 推理默认连接 `http://192.168.1.137:8000/v1`（代码中 `VLM_API_URL` 常量）。VLM 服务不在线时使用 `--mock` 跳过。
+室内导航的 VLM 推理默认连接 `http://10.100.0.1:8000/v1`（代码中 `VLM_API_URL` 常量）。VLM 服务不在线时使用 `--mock` 跳过。
 
 ---
 

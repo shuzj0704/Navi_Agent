@@ -33,7 +33,7 @@ class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 5100
     gpu_device_id: int = 0
-    scenes_base_dir: str = "/home/nuc/vln/data/scene_data/mp3d"
+    scenes_base_dir: str = "data/scene_data/mp3d"
     default_scene: Optional[str] = None
     enable_physics: bool = False
     sensors: Dict[str, SensorConfig] = field(default_factory=dict)
@@ -70,7 +70,7 @@ def load_config(path: str) -> ServerConfig:
         host=server_raw.get("host", "0.0.0.0"),
         port=server_raw.get("port", 5100),
         gpu_device_id=server_raw.get("gpu_device_id", 0),
-        scenes_base_dir=scenes_raw.get("base_dir", "/home/nuc/vln/data/scene_data/mp3d"),
+        scenes_base_dir=scenes_raw.get("base_dir", "data/scene_data/mp3d"),
         default_scene=scenes_raw.get("default_scene"),
         enable_physics=physics_raw.get("enable", False),
         sensors=sensors,

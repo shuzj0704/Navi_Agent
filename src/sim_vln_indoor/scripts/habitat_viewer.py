@@ -25,11 +25,10 @@ Habitat-Sim 交互式查看器
 """
 
 import os, sys
-_VLN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-_SRC_ROOT = os.path.join(_VLN_ROOT, "Navi_Agent", "src")
-sys.path.insert(0, _VLN_ROOT)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+_SRC_ROOT = os.path.join(_PROJECT_ROOT, "src")
 sys.path.insert(0, _SRC_ROOT)
-os.chdir(_VLN_ROOT)
+os.chdir(_PROJECT_ROOT)
 # 强制 habitat-sim 使用 EGL device 0（而非按 CUDA ID 查找）
 os.environ["HABITAT_SIM_CUSTOM_EGL_DEVICE"] = "0"
 os.environ["MAGNUM_LOG"] = "verbose"
@@ -50,7 +49,7 @@ except ImportError:
     _HAS_PYGAME = False
 
 # ========== 配置 ==========
-SCENE_DIR = "/home/nuc/vln/data/scene_data/mp3d"
+SCENE_DIR = "data/scene_data/mp3d"
 WIDTH = 800
 HEIGHT = 600
 HFOV = 90  # 水平视场角
@@ -393,7 +392,7 @@ def main():
 
                 # A: 截图
                 if _btn(0):
-                    save_path = f"/home/nuc/vln/screenshot_{screenshot_count:03d}.png"
+                    save_path = f"output/screenshot_{screenshot_count:03d}.png"
                     cv2.imwrite(save_path, rgb_bgr)
                     print(f"截图已保存: {save_path}")
                     screenshot_count += 1
@@ -504,7 +503,7 @@ def main():
             tilt_angle = 0
 
         elif key == ord(' '):  # SPACE - 截图
-            save_path = f"/home/nuc/vln/screenshot_{screenshot_count:03d}.png"
+            save_path = f"output/screenshot_{screenshot_count:03d}.png"
             cv2.imwrite(save_path, rgb_bgr)
             print(f"截图已保存: {save_path}")
             screenshot_count += 1
