@@ -69,7 +69,8 @@ class GPSVLMNavController(NavController):
         lookahead: int = 5,
         goal_tol: float = 2.0,
         turn_threshold_deg: float = 30.0,
-        max_tokens: int = 32,
+        max_tokens: int = 96,
+        enable_thinking: bool = False,
         output_dir: str | None = None,
     ):
         from vlm_serve.client import VLMClient
@@ -99,6 +100,7 @@ class GPSVLMNavController(NavController):
         self.goal_tol = float(goal_tol)
         self.turn_threshold = float(turn_threshold_deg)
         self.max_tokens = int(max_tokens)
+        self.enable_thinking = bool(enable_thinking)
 
         # ── output dir (frames + io log) ───────────────────────────────
         if output_dir is None:
@@ -180,6 +182,7 @@ class GPSVLMNavController(NavController):
                 prompt=prompt,
                 image_path=frame_path,
                 max_tokens=self.max_tokens,
+                enable_thinking=self.enable_thinking,
             )
         except Exception as e:
             print(f"[GPSVLM] VLM call failed: {e} -- no-op")
@@ -295,38 +298,87 @@ class GPSVLMNavController(NavController):
         else:
             wp_lines = "  (none — at end of route)"
 
+        turn_steps = max(1, int(math.ceil(90.0 / max(self.yaw_step, 1e-6))))
+
         return (
-            f"You are an outdoor navigation robot. Task: {self.instruction}\n"
+            f"You are an outdoor navigation robot following a pre-planned GPS route.\n"
+            f"Task: {self.instruction}\n"
             f"\n"
-            f"CURRENT STATE:\n"
-            f"  position: ({cur_pos[0]:.1f}, {cur_pos[1]:.1f})\n"
-            f"  heading: {cur_yaw:.0f} degrees\n"
+            f"CAMERA VIEW: the attached first-person RGB image.\n"
+            f"IMPORTANT: the image alone is NOT enough to decide. You MUST follow\n"
+            f"the NEXT_TURN hint below, even when the road in the image looks\n"
+            f"straight and open. The route planner already knows where to turn.\n"
+            f"\n"
+            f"ROUTE STATE:\n"
+            f"  position: ({cur_pos[0]:.1f}, {cur_pos[1]:.1f})   "
+            f"heading: {cur_yaw:.0f} deg\n"
+            f"  goal: ({self.goal_pos[0]:.1f}, {self.goal_pos[1]:.1f})\n"
+            f"  remaining: {dist_to_goal:.1f} m   ({progress_pct}% complete)\n"
             f"  step: {obs.step}\n"
             f"\n"
-            f"NAVIGATION ROUTE (top-down, world coordinates):\n"
-            f"  goal: ({self.goal_pos[0]:.1f}, {self.goal_pos[1]:.1f})\n"
-            f"  total_length: {self.total_length:.1f} m\n"
-            f"  remaining: {dist_to_goal:.1f} m\n"
-            f"  progress: {progress_pct}%\n"
-            f"\n"
             f"NEXT {len(lookahead_ego)} WAYPOINTS "
-            f"(relative to your current pose, +x=front, +y=left):\n"
+            f"(ego frame, +x=front, +y=left, meters):\n"
             f"{wp_lines}\n"
+            f"  (negative y means the waypoint is to your RIGHT;\n"
+            f"   positive y means it is to your LEFT)\n"
             f"\n"
-            f"NEXT TURN: {next_turn}\n"
+            f"=== DECISION RULE — apply NEXT_TURN first, override the image if needed ===\n"
             f"\n"
-            f"Looking at the camera view (RGB image), choose ONE next action:\n"
-            f"- FORWARD: move forward {self.forward_step}m\n"
-            f"- TURN_LEFT: turn left {self.yaw_step} degrees in place\n"
-            f"- TURN_RIGHT: turn right {self.yaw_step} degrees in place\n"
-            f"- STOP: arrived at destination or unsafe to proceed\n"
+            f'NEXT_TURN = "{next_turn}"\n'
             f"\n"
-            f"Reply with ONE keyword only "
-            f"(FORWARD / TURN_LEFT / TURN_RIGHT / STOP). No explanation."
+            f"Map NEXT_TURN to an action:\n"
+            f'  - "continue straight"                         -> FORWARD\n'
+            f'  - "turn left  in X m"  with X < 0.5           -> TURN_LEFT\n'
+            f'  - "turn right in X m"  with X < 0.5           -> TURN_RIGHT\n'
+            f'  - "turn left/right in X m"  with X >= 0.5     -> FORWARD (approach the corner first)\n'
+            f"\n"
+            f"Notes:\n"
+            f"  - Each FORWARD advances {self.forward_step} m. "
+            f"Each TURN rotates only {self.yaw_step:.0f} deg.\n"
+            f"  - A sharp 90 deg corner takes about {turn_steps} consecutive TURN actions\n"
+            f'    to complete. This is normal — keep turning until NEXT_TURN becomes\n'
+            f'    "continue straight" again. Do not resume FORWARD after a single TURN.\n'
+            f"  - If remaining distance < {self.goal_tol} m -> STOP.\n"
+            f"\n"
+            f"=== EXAMPLES ===\n"
+            f"\n"
+            f'Example 1 — NEXT_TURN = "continue straight"\n'
+            f"REASON: NEXT_TURN is straight, no corner in sight.\n"
+            f"ACTION: FORWARD\n"
+            f"\n"
+            f'Example 2 — NEXT_TURN = "turn right in 1.4m"\n'
+            f"REASON: corner is 1.4m away, I must approach it first before turning.\n"
+            f"ACTION: FORWARD\n"
+            f"\n"
+            f'Example 3 — NEXT_TURN = "turn right in 0.0m"\n'
+            f"REASON: I am standing at the corner, must turn right even though the road ahead looks open.\n"
+            f"ACTION: TURN_RIGHT\n"
+            f"\n"
+            f"=== YOUR TURN ===\n"
+            f"\n"
+            f"Reply format — EXACTLY two lines, no extra text:\n"
+            f"  REASON: <one short sentence stating which rule matched>\n"
+            f"  ACTION: <FORWARD | TURN_LEFT | TURN_RIGHT | STOP>\n"
         )
 
     def _parse_action(self, reply: str) -> Action:
-        text = (reply or "").strip().upper()
+        """Parse a two-line REASON/ACTION reply.
+
+        Primary path: find the line starting with "ACTION" and match keywords
+        on its right-hand side only, so REASON text does not leak in.
+        Fallback: if no ACTION line is found (bare-keyword reply), match
+        against the last non-empty line.
+        """
+        lines = [l.strip() for l in (reply or "").splitlines() if l.strip()]
+        action_line = next(
+            (l for l in lines if l.upper().startswith("ACTION")),
+            lines[-1] if lines else "",
+        )
+        # Strip "ACTION:" prefix if present, keep only the right-hand side
+        if ":" in action_line:
+            action_line = action_line.split(":", 1)[1]
+        text = action_line.strip().upper()
+
         # Check compound keywords before bare ones
         if "TURN_LEFT" in text or "TURN LEFT" in text:
             return Action(yaw=self.yaw_step)
