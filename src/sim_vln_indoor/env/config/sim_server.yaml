@@ -1,0 +1,46 @@
+server:
+  host: "0.0.0.0"
+  port: 5100
+  gpu_device_id: 0
+
+scenes:
+  base_dir: "/home/nuc/vln/data/scene_data/mp3d"
+  default_scene: null
+
+physics:
+  enable: false
+
+camera_defaults:
+  position: [0.0, 0.5, 0.0]
+  pitch: 0.0
+  yaw: 0.0
+  roll: 0.0
+  hfov: 120
+  width: 640
+  height: 480
+
+sensors:
+  front_rgb:
+    type: COLOR
+    yaw: 0.0
+  left_rgb:
+    type: COLOR
+    yaw: 90.0
+  right_rgb:
+    type: COLOR
+    yaw: -90.0
+  back_rgb:
+    type: COLOR
+    yaw: 180.0
+  front_depth:
+    type: DEPTH
+    yaw: 0.0
+  low_depth:
+    type: DEPTH
+    hfov: 90
+    yaw: 0.0
+
+encoding:
+  rgb_format: jpeg
+  rgb_jpeg_quality: 90
+  depth_format: raw_f32
