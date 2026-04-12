@@ -145,7 +145,7 @@ FileNotFoundError: YOLOE 模型文件不存在: Navi_Agent/models/yoloe-11l-seg.
 
 ```bash
 conda activate habitat
-cd Navi_Agent/src
+cd src
 python -m sim_vln_indoor.env.server
 # 默认监听 0.0.0.0:5100, 可选: --port 5200 --config <path>
 ```
@@ -174,20 +174,19 @@ HTTP API：
 在**任意 Python 环境**中运行（不需要 habitat）：
 
 ```bash
-cd /home/nuc/vln
 
 # 单次导航
-python Navi_Agent/src/scripts/nav_main.py \
+python src/scripts/nav_main.py \
   --sim-url http://localhost:5100 \
   --scene 17DRP5sb8fy \
   --steps 100 \
   --save-vis
 
 # Mock 模式（不调 VLM, 测试仿真连通性）
-python Navi_Agent/src/scripts/nav_main.py --mock --scene 17DRP5sb8fy
+python src/scripts/nav_main.py --mock --scene 17DRP5sb8fy
 
 # 批量评测
-python Navi_Agent/src/scripts/batch_eval.py \
+python src/scripts/batch_eval.py \
   --sim-url http://localhost:5100 \
   --split val_seen \
   --max-episodes 5 \
