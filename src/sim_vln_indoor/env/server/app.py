@@ -106,6 +106,7 @@ def create_app(config_path: str = "config/sim_server.yaml") -> FastAPI:
 
         返回 multipart/mixed: 第一部分 JSON 元数据, 后续部分为二进制传感器数据。
         """
+        import traceback
         loop = asyncio.get_event_loop()
         try:
             obs, agent_state = await loop.run_in_executor(
@@ -113,65 +114,70 @@ def create_app(config_path: str = "config/sim_server.yaml") -> FastAPI:
             )
         except RuntimeError as e:
             raise HTTPException(400, str(e))
+        except Exception as e:
+            raise HTTPException(500, f"get_observations failed: {e}\n{traceback.format_exc()}")
 
         enc = config.encoding
         boundary = "frame"
 
-        # 构建元数据
-        sensors_meta = {}
-        parts = []
+        try:
+            # 构建元数据
+            sensors_meta = {}
+            parts = []
 
-        for name, scfg in config.sensors.items():
-            data = obs[name]
-            if scfg.type == "COLOR":
-                encoded, ct = encode_rgb(data, enc.rgb_format, enc.rgb_jpeg_quality)
-                sensors_meta[name] = {
-                    "width": scfg.width, "height": scfg.height,
-                    "channels": 3, "dtype": "uint8",
-                    "encoding": enc.rgb_format,
-                }
-            else:  # DEPTH
-                raw = data
-                if raw.ndim == 3:
-                    raw = raw[:, :, 0]
-                encoded, ct = encode_depth(raw, enc.depth_format)
-                dtype_str = "float16" if enc.depth_format == "raw_f16" else "float32"
-                sensors_meta[name] = {
-                    "width": scfg.width, "height": scfg.height,
-                    "channels": 1, "dtype": dtype_str,
-                    "encoding": enc.depth_format,
-                }
-            parts.append((name, encoded, ct))
+            for name, scfg in config.sensors.items():
+                data = obs[name]
+                if scfg.type == "COLOR":
+                    encoded, ct = encode_rgb(data, enc.rgb_format, enc.rgb_jpeg_quality)
+                    sensors_meta[name] = {
+                        "width": scfg.width, "height": scfg.height,
+                        "channels": 3, "dtype": "uint8",
+                        "encoding": enc.rgb_format,
+                    }
+                else:  # DEPTH
+                    raw = data
+                    if raw.ndim == 3:
+                        raw = raw[:, :, 0]
+                    encoded, ct = encode_depth(raw, enc.depth_format)
+                    dtype_str = "float16" if enc.depth_format == "raw_f16" else "float32"
+                    sensors_meta[name] = {
+                        "width": scfg.width, "height": scfg.height,
+                        "channels": 1, "dtype": dtype_str,
+                        "encoding": enc.depth_format,
+                    }
+                parts.append((name, encoded, ct))
 
-        metadata = {
-            "agent_state": {
-                "position": agent_state.position,
-                "rotation": agent_state.rotation,
-            },
-            "sensors": sensors_meta,
-        }
+            metadata = {
+                "agent_state": {
+                    "position": agent_state.position,
+                    "rotation": agent_state.rotation,
+                },
+                "sensors": sensors_meta,
+            }
 
-        # 构建 multipart body
-        body_parts = []
-        # Part 0: JSON metadata
-        meta_bytes = json.dumps(metadata).encode()
-        body_parts.append(
-            f"--{boundary}\r\n"
-            f"Content-Type: application/json\r\n"
-            f"\r\n".encode() + meta_bytes + b"\r\n"
-        )
-        # Part 1..N: sensor data
-        for name, data_bytes, ct in parts:
-            header = (
+            # 构建 multipart body
+            body_parts = []
+            # Part 0: JSON metadata
+            meta_bytes = json.dumps(metadata).encode()
+            body_parts.append(
                 f"--{boundary}\r\n"
-                f"Content-Disposition: attachment; name=\"{name}\"\r\n"
-                f"Content-Type: {ct}\r\n"
-                f"\r\n"
-            ).encode()
-            body_parts.append(header + data_bytes + b"\r\n")
+                f"Content-Type: application/json\r\n"
+                f"\r\n".encode() + meta_bytes + b"\r\n"
+            )
+            # Part 1..N: sensor data
+            for name, data_bytes, ct in parts:
+                header = (
+                    f"--{boundary}\r\n"
+                    f"Content-Disposition: attachment; name=\"{name}\"\r\n"
+                    f"Content-Type: {ct}\r\n"
+                    f"\r\n"
+                ).encode()
+                body_parts.append(header + data_bytes + b"\r\n")
 
-        body_parts.append(f"--{boundary}--\r\n".encode())
-        body = b"".join(body_parts)
+            body_parts.append(f"--{boundary}--\r\n".encode())
+            body = b"".join(body_parts)
+        except Exception as e:
+            raise HTTPException(500, f"Encoding failed: {e}\n{traceback.format_exc()}")
 
         return Response(
             content=body,

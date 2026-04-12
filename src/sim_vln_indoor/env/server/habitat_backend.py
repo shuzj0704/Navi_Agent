@@ -92,7 +92,7 @@ class HabitatBackend:
             obs = self._sim.get_sensor_observations()
             agent_state = self._sim.get_agent(0).get_state()
             state_data = AgentStateData(
-                position=list(agent_state.position),
+                position=[float(v) for v in agent_state.position],
                 rotation=[
                     float(agent_state.rotation.x),
                     float(agent_state.rotation.y),
@@ -189,7 +189,7 @@ class HabitatBackend:
     def _get_agent_state_data(self) -> AgentStateData:
         state = self._sim.get_agent(0).get_state()
         return AgentStateData(
-            position=list(state.position),
+            position=[float(v) for v in state.position],
             rotation=[
                 float(state.rotation.x),
                 float(state.rotation.y),
