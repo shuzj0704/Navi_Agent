@@ -27,14 +27,71 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 - **训练**: Stage 1 Explicit CoT SFT → Stage 2 Latent Distillation → Stage 3 RFT（IQL/GRPO）
 - **训练基础设施**: 8×A100 80GB, BF16, ZeRO-2, flash_attention_2, 基于 InternVLA-N1 代码库适配
 
+## 代码架构
+
+项目分三个独立运行层，通过 HTTP 通信解耦：
+
+```
+naviagent (任意 Python 环境, 无 habitat 依赖)
+  ├── perception: 观测读取 (ObsBundle, SimClientObsReader) + 点云 + YOLOE 分割 + 语义地图
+  ├── decision:   NavigationEngine + DWA + 转向控制 + TaskOrchestrator
+  ├── vlm:        VLMNavigator (System1) + System2Planner
+  └── common:     坐标变换 + NavState + 视角常量 + 可视化
+
+sim_vln_indoor (conda activate habitat, Python 3.9)
+  └── env/server/ — FastAPI 仿真 HTTP 服务器 (端口 5100)
+  └── env/client/ — SimClient (httpx), naviagent 通过此客户端调用仿真
+
+sim_vln_outdoor (Isaac Sim 自带 Python, ./python.sh)
+  └── Isaac Sim 渲染 + NavController 接口
+```
+
+## 室内导航运行方式
+
+采用**双进程架构**，仿真服务器和导航 Agent 分开运行：
+
+```bash
+# Terminal 1: 启动仿真服务器 (habitat 环境)
+conda activate habitat
+cd src
+python -m sim_vln_indoor.env.server
+# 默认 0.0.0.0:5100, 可选 --port 5200
+
+# Terminal 2: 启动导航 Agent (任意环境)
+python src/scripts/nav_main.py --sim-url http://localhost:5100 --scene 17DRP5sb8fy --steps 100
+python src/scripts/nav_main.py --mock --scene 17DRP5sb8fy   # 不调 VLM
+python src/scripts/batch_eval.py --split val_seen --max-episodes 5 --steps 100
+```
+
+验证仿真服务器：
+```bash
+curl http://localhost:5100/health
+curl http://localhost:5100/scenes
+```
+
+室内 VLM 推理默认连接 `http://10.100.0.1:8000/v1`（代码中 `VLM_API_URL` 常量）。
+
 ## Conda 环境
 
 | 环境名 | Python | 用途 | 激活方式 |
 |--------|--------|------|---------|
-| `habitat` | 3.9 | 室内仿真渲染（Habitat-Sim 0.3.3 + Habitat-Lab 0.3.3） | `conda activate habitat` |
+| `habitat` | 3.9 | 室内仿真服务器（Habitat-Sim 0.3.3 + FastAPI + uvicorn） | `conda activate habitat` |
 | `metaurban` | 3.10 | 室外仿真渲染（MetaUrban 0.0.1 + SB3 + PyTorch） | `conda activate metaurban` |
 
 两个环境不可混装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D）。
+
+naviagent 运行在**任意 Python 环境**，依赖：`numpy, opencv-python, httpx, openai, ultralytics`。
+
+## 模型权重 (git-lfs)
+
+`models/` 目录下的 `.pt` 文件通过 git-lfs 管理。克隆后必须拉取：
+
+```bash
+git lfs install
+git lfs pull
+```
+
+当前模型：`models/yoloe-11l-seg.pt` (68MB, YOLOE 开放词汇分割)
 
 ## 机器与远程访问
 
@@ -52,7 +109,6 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
   # 然后本机跑仿真,显式 --base-url http://localhost:18004/v1
   ```
 - **常见坑**：远程 vLLM 的 `--port` 取决于实际启动命令(可能不是仓库默认 8004),用前 `ssh ps2 'ss -tlnp | grep python'` 确认真实端口
-- ⚠️ 不要在 ps2 上对自己再起 `ssh -L 8004:localhost:8004 ps2` — 自循环会占住端口且任何连接都会被立刻断开,曾经踩过
 
 ## 关键文档
 
@@ -89,20 +145,34 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 - `python.sh` wrapper 默认走 `/home/shu22/nvidia/isaacsim_5.1.0`；新机器需 `export ISAACSIM_ROOT=...` 覆盖
 - 用 VLM controller 前必须 `./python.sh -m pip install openai`，否则 `from vlm_serve.client import VLMClient` 会 ModuleNotFoundError
 
+### 室内仿真相关
+- 仿真服务器 (`sim_vln_indoor.env.server`) 必须在 `habitat` conda 环境中运行
+- 导航 Agent (`nav_main.py` / `batch_eval.py`) 可在任意 Python 环境运行，不需要 habitat
+- Habitat 返回的 numpy float32 不能直接 `json.dumps`，已在 `habitat_backend.py` 中转为 Python float
+- `SimClient.get_observations()` 返回的 RGB 图已经是 BGR 格式（服务端做了 RGB→BGR 转换），不要重复转换
+
 ### 全新服务器部署
-- 完整部署清单（系统依赖、Conda 环境、Isaac Sim wrapper、模型路径、xvfb、smoke test）见 [README.md 第 4 节](README.md#4-全新服务器部署清单)
-- **必须改的硬编码路径**：[python.sh](python.sh) `ISAACSIM_ROOT`、[src/vlm_serve/configs/qwen3_5_9b.yaml](src/vlm_serve/configs/qwen3_5_9b.yaml) `model_path/gpu`、[src/vlm_serve/configs/qwen3_vl_8b.yaml](src/vlm_serve/configs/qwen3_vl_8b.yaml) `model_path/gpu`
+- 室内仿真部署只需 `src/sim_vln_indoor/` (~50KB) + 场景数据 + habitat conda 环境
+- 室外仿真部署见 [README.md](README.md) 第 4 节
+- **必须改的硬编码路径**：
+  - `src/sim_vln_indoor/env/config/sim_server.yaml` — `scenes.base_dir` (MP3D 场景路径)
+  - `src/scripts/batch_eval.py` — `DATASET_DIR`, `SCENE_DIR` (VLN-CE 数据集路径)
+  - `src/scripts/nav_main.py` / `batch_eval.py` — `VLM_API_URL` (VLM 服务地址)
+  - [python.sh](python.sh) — `ISAACSIM_ROOT`
+  - [src/vlm_serve/configs/qwen3_5_9b.yaml](src/vlm_serve/configs/qwen3_5_9b.yaml) — `model_path/gpu`
+  - [src/vlm_serve/configs/qwen3_vl_8b.yaml](src/vlm_serve/configs/qwen3_vl_8b.yaml) — `model_path/gpu`
 - `data/` 整体被 gitignore，但 `data/urbanverse/trajectory/scene_*/blog_point.txt`（人工标注的导航路线 waypoint 文件）通过 `.gitignore` 例外规则**入库**；由它生成的 `dense_trajectory.json/.png` 不入库，每次拉下来后需要跑一次 `scripts/utils/interpolate_trajectory.py` 重新生成
 
 ## 仿真数据资源
 
 | 资源 | 路径 | 状态 |
 |------|------|------|
+| MP3D 室内场景 | `data/scene_data/mp3d/` | Habitat 室内仿真 (~21GB) |
+| R2R VLN-CE 数据集 | `data/vln_ce/R2R_VLNCE_v1-3/` | 室内导航评测数据 |
 | MetaUrban 测试轨迹 | `data/metaurban_test/episode_0000/` | 已采集（231 步，SR 95.2%） |
 | CraftBench 12 场景 | `data/UrbanVerse-CraftBench/` | 已下载 7/12 场景（scene_01~07），USD 格式，IsaacSim 4.5.0 打开 |
 | CraftBench 原始副本 | `/home/shu22/navigation/urban_verse/CraftBench/` | 全 12 场景 + 场景文件说明文档 |
-| Urban-Sim（程序化仿真） | 未 clone | 开发阶段首选平台，github.com/metadriverse/urban-sim |
-| HM3D 室内场景 | 未下载 | 需 Matterport API token |
+| YOLOE 模型 | `models/yoloe-11l-seg.pt` | git-lfs 管理 (68MB) |
 
 ## 参考论文 `docs/paper/`
 
@@ -154,40 +224,15 @@ src/sim_vln_outdoor/
 - 脚本通过 `sys.path.insert` 把 `sim_vln_outdoor/` 加入搜索路径，用 `from env import IsaacSimEnv` 导入
 - 运行方式：`./python.sh src/sim_vln_outdoor/scripts/<script>.py`（Isaac Sim 自带 Python，不用 conda）
 
-### nav_eval.py 闭环评估
-
-渲染 D435i 图像 → 控制器输出动作 → 更新相机位姿 → 循环。用于验证导航控制器在仿真场景中的表现。
-
-```bash
-# 直行 + headless + 保存帧（默认 ForwardOnly 控制器）
-./python.sh src/sim_vln_outdoor/scripts/nav_eval.py --headless --save-frames --max-steps 200
-
-# 自定义控制器，2Hz
-./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
-    --headless --controller "my_module:MyController" --controller-freq 2.0
-
-# VLM 控制器（先在另一个终端起 Qwen3-VL 服务，见下文「VLM 部署」一节）
-xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/nav_eval.py \
-    --headless --save-frames --max-steps 100 --controller-freq 1.0 \
-    --controller "nav.vlm_controller:VLMNavController" \
-    --controller-kwargs '{"instruction":"explore the construction site, avoid barriers"}'
-```
-
-自定义控制器继承 `NavController`，实现 `act(obs) -> Action`。`--controller-kwargs` 接 JSON 字符串传给 `__init__`。输出保存到 `data/urbanverse/nav_eval/<timestamp>/`（trajectory.jsonl + summary.json + 可选帧图片）。详见 `src/sim_vln_outdoor/README.md`。
-
-`nav.vlm_controller.VLMNavController` 是内置的 VLM 闭环控制器：每步把 RGB 帧发给 vLLM 服务，解析 `FORWARD / TURN_LEFT / TURN_RIGHT / STOP` 关键字回复转成 `Action`。Isaac Sim 自带 Python 需先 `./python.sh -m pip install openai`。输入图保存在 `data/urbanverse/vlm_inputs/<timestamp>/` 便于 debug。
-
 ### vlm_gps_nav.py — GPS 引导 VLM 闭环导航
 
-`nav_eval.py` 的 VLM 控制器只看图,无目标感知。`vlm_gps_nav.py` 是任务专属入口：从 `dense_trajectory.json` 加载预先规划的 GPS 路径,初始 pose 自动取轨迹起点,每步给 VLM **FPV 图像 + 结构化文本 prompt**(当前 pose / 进度 / 前 5 个 lookahead 点 ego 坐标 / next turn 提示 / 距终点距离),让 VLM 沿路径走到终点。
-
 ```bash
-# 1. scripts/utils/interpolate_trajectory.py 把稀疏 waypoint 文件稠密化
+# 1. 稀疏 waypoint → 稠密轨迹
 python scripts/utils/interpolate_trajectory.py \
     --input data/urbanverse/trajectory/scene_09/blog_point.txt \
     --step 0.5 --visualize
 
-# 2. 起 Qwen3-VL 服务（另一个终端，lwy_swift 环境）
+# 2. 起 Qwen3-VL 服务（另一终端，lwy_swift 环境）
 python scripts/serve/start_qwen3vl.py
 
 # 3. 跑闭环
@@ -196,39 +241,17 @@ xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/vlm_gps_nav.py \
     --trajectory data/urbanverse/trajectory/scene_09/dense_trajectory.json
 ```
 
-输出在 `data/urbanverse/vlm_gps_nav/<timestamp>/`：`frames/frame_*.png`(FPV 帧) + `vlm_io.jsonl`(每步完整 prompt+reply+pose,可审计) + `trajectory.jsonl` + `summary.json`(success/final_dist/total_steps) + `nav.mp4`(30fps 视频)。控制器实现在 `nav.gps_vlm_controller.GPSVLMNavController`,核心 helper：`_world_to_ego`(world→ego 坐标变换)、`_detect_next_turn`(在 lookahead 内找 bearing 突变,转人话 `"turn right in 1.4m"`)、`_update_progress`(单调 closest-point 推进,防回退)。
-
-`blog_point.txt` 是 position-only 格式(`[point N] x y z`),跟真实导航 APP 的 polyline 一致 — 不带朝向。机器人初始 yaw 由稠密路径第一段的 `atan2` 推出,默认"被放下时已经面朝路线";加 `--start-yaw <deg>` 可强制覆盖以测试"初始反向调头"等场景。
+输出在 `data/urbanverse/vlm_gps_nav/<timestamp>/`。
 
 ## VLM 部署 `src/vlm_serve/`
 
 封装 vLLM 服务启动 + OpenAI client 调用，供 Teacher Model 标注、推理评估、交互测试统一复用。**新增需要调 VLM 的代码请直接 `from vlm_serve.client import VLMClient`，不要再写新的 OpenAI client 包装。**
 
-```
-src/vlm_serve/
-├── server.py            # VLLMServerConfig + build_command + launch + load_config
-├── client.py            # VLMClient: chat / chat_stream_text / chat_with_image
-└── configs/
-    ├── qwen3_5_9b.yaml  # 文本模型默认配置（GPU 1, 端口 8003）
-    └── qwen3_vl_8b.yaml # 视觉模型默认配置（GPU 2, 端口 8004）
-```
-
-入口脚本在 `scripts/serve/`，所有参数走 YAML，CLI 可覆盖 `--model-path / --port / --gpu / --max-model-len`。
-
 ```bash
-# 启动 Qwen3.5-9B 服务（默认 GPU 1, 端口 8003）
-python scripts/serve/start_qwen35.py
-
-# 启动 Qwen3-VL-8B 服务（默认 GPU 2, 端口 8004）
+# 启动 Qwen3-VL-8B 服务（需 lwy_swift 环境）
 python scripts/serve/start_qwen3vl.py
 
-# 临时换 GPU/端口
-python scripts/serve/start_qwen35.py --gpu 0 --port 8013
-
-# 交互测试（默认连 Qwen3.5）
-python scripts/serve/chat_test.py
-
-# 交互测试 Qwen3-VL
+# 交互测试
 python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qwen3-vl
 ```
 
@@ -245,7 +268,7 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 | `scripts/utils/interpolate_trajectory.py` | 把稀疏 waypoint 文件线性插值成稠密轨迹 JSON（含 PIL 可视化） | 任意（numpy + Pillow） |
 | `scripts/utils/reorganize_refs.py` | 参考文献重组工具 | 任意 |
 | `scripts/utils/update_refs.py` | 参考文献更新工具 | 任意 |
-| `scripts/reference/app.py` | VLN Demo 参考脚本（外部依赖，不可直接运行） | — |
+| `scripts/reference/app.py` | VLN Demo 参考脚本（外部依赖，不可直接运行） | -- |
 | `docs/proposal/gen_framework_v3.py` | 生成 Framework_v3.png 架构图 | 任意（matplotlib） |
 
 ## 文件约定
@@ -255,3 +278,4 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 - 数据存放在 `data/`（已 gitignore），README.md 记录每次采集的配置和结果
 - 所有 markdown 文档保持飞书兼容格式（无 jsonc、无 HTML 标签）
 - `.claudeignore` 排除了 PDF/DOCX 等二进制文件，避免读入上下文
+- 模型权重 (`.pt`) 通过 git-lfs 管理，克隆后需 `git lfs install && git lfs pull`
