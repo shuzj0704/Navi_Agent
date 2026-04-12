@@ -30,7 +30,7 @@ class ObsBundle:
     obstacles_local: np.ndarray     # (N, 2) 机器人坐标系 [前, 右]
     obstacles_global: np.ndarray    # (N, 2) 导航坐标系 [nav_x, nav_y]
     front_depth: np.ndarray         # (H, W) float32
-    views_bgr: Dict[str, np.ndarray]  # {"front": (H,W,3), "left": ..., "right": ..., "back": ...}
+    views_bgr: Dict[str, np.ndarray]  # {"front": (H,W,3), "left": ..., "right": ...}
 
 
 class HabitatObsReader:
@@ -81,7 +81,7 @@ class HabitatObsReader:
 
         # 四视角 BGR
         views_bgr = {}
-        for vname in ["front", "left", "right", "back"]:
+        for vname in ["front", "left", "right"]:
             sk = f"{vname}_rgb"
             views_bgr[vname] = cv2.cvtColor(obs[sk][:, :, :3], cv2.COLOR_RGB2BGR)
 
@@ -145,7 +145,7 @@ class SimClientObsReader:
 
         # 四视角 BGR (SimClient 返回的 RGB 图已经是 BGR)
         views_bgr = {}
-        for vname in ["front", "left", "right", "back"]:
+        for vname in ["front", "left", "right"]:
             sk = f"{vname}_rgb"
             views_bgr[vname] = obs[sk]
 

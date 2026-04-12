@@ -5,9 +5,9 @@
 两个子系统的关键状态拼成一张大图,供主循环写视频或周期性存帧。
 
 布局:
-    +-----+-----+-----+-----+
-    | LEFT|FRONT|RIGHT| BACK|   ← 顶部全景
-    +-----+-----+-----+-----+
+    +-----+-----+-----+
+    | LEFT|FRONT|RIGHT|   ← 顶部全景 (三视角)
+    +-----+-----+-----+
     | sys1| bev | sem | sys2|   ← 底部
     +-----+-----+-----+-----+
 """
@@ -19,10 +19,10 @@ from PIL import Image, ImageDraw, ImageFont
 # ---------- 布局尺寸 ----------
 VIS_VIEW_W, VIS_VIEW_H = 400, 300
 VIS_BOTTOM_H = 400
-VIS_PANEL_W = 400
-VIS_BEV_W = 400
-VIS_SEM_W = 400
-VIS_TOTAL_W = VIS_VIEW_W * 4  # 1600
+VIS_PANEL_W = 300
+VIS_BEV_W = 300
+VIS_SEM_W = 300
+VIS_TOTAL_W = VIS_VIEW_W * 3  # 1200
 VIS_TOTAL_H = VIS_VIEW_H + VIS_BOTTOM_H  # 700
 
 
@@ -175,7 +175,7 @@ def _draw_view_with_overlay(view_bgr, view_name, vlm_view, vlm_vx, vlm_vy, cam_g
 
     # 标题条
     label = {"left": "LEFT [l]", "front": "FRONT [f]",
-             "right": "RIGHT [r]", "back": "BACK [b]"}[view_name]
+             "right": "RIGHT [r]"}[view_name]
     is_chosen = (vlm_view == view_name)
     bar_color = (0, 200, 255) if is_chosen else (50, 50, 50)
     cv2.rectangle(img, (0, 0), (VIS_VIEW_W, 22), bar_color, -1)
@@ -246,8 +246,6 @@ def draw_debug_frame(nav, views_bgr, sem_map, dwa_debug, obstacles_local,
         _draw_view_with_overlay(views_bgr["front"], "front",
                                 vlm_view, vlm_vx, vlm_vy, cam_goal),
         _draw_view_with_overlay(views_bgr["right"], "right",
-                                vlm_view, vlm_vx, vlm_vy, cam_goal),
-        _draw_view_with_overlay(views_bgr["back"],  "back",
                                 vlm_view, vlm_vx, vlm_vy, cam_goal),
     ])
 

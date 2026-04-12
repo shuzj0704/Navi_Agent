@@ -6,16 +6,15 @@ VLM Navigator 和 Planner 共享的视角定义、缩写映射和角度工具函
 
 import math
 
-VIEW_ORDER = ["front", "left", "right", "back"]
+VIEW_ORDER = ["front", "left", "right"]
 
-VIEW_ABBR = {"front": "f", "left": "l", "right": "r", "back": "b"}
+VIEW_ABBR = {"front": "f", "left": "l", "right": "r"}
 ABBR_TO_VIEW = {v: k for k, v in VIEW_ABBR.items()}
 
 VIEW_LABELS = {
     "front": "[f] 前视图:",
     "left":  "[l] 左视图:",
     "right": "[r] 右视图:",
-    "back":  "[b] 后视图:",
 }
 
 

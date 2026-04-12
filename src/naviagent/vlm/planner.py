@@ -40,7 +40,7 @@ PLANNER_USER_PROMPT_TEMPLATE = """整体任务: {full_instruction}
 已完成: {completed}
 当前子任务: {current}{hint}
 
-图像: 前(f)/左(l)/右(r)/后(b) 四张相机视图 + 俯视语义地图(绿点=机器人, 浅绿线=轨迹, 彩色框=检出物体)。
+图像: 前(f)/左(l)/右(r) 三张相机视图 + 俯视语义地图(绿点=机器人, 浅绿线=轨迹, 彩色框=检出物体)。
 {mapped_classes_note}
 
 规则:
@@ -128,7 +128,7 @@ class System2Planner:
                ) -> "Future[PlanDecision]":
         """非阻塞提交一次规划调用,返回 Future。
 
-        views_bgr: {"front": BGR(H,W,3), "left": ..., "right": ..., "back": ...}
+        views_bgr: {"front": BGR(H,W,3), "left": ..., "right": ...}
         pose:      (nav_x, nav_y, nav_yaw), 用于前视历史记忆的增量判定。
         所有图像在派发时复制一份,避免主线程后续覆盖影响后台调用。
         """

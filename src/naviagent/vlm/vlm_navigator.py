@@ -30,7 +30,7 @@ FRONT_MEMORY_MIN_ANGLE = math.radians(30.0)
 
 TASK_PROMPT = """
 
-你是一名专业的导航向导。上方四张图像分别由机器人的前(f)、左(l)、右(r)、后(b)四个相机拍摄，每张图像分辨率为 640x480 像素，原点 (0,0) 位于左上角。
+你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x480 像素，原点 (0,0) 位于左上角。
 
 你的导航任务是: {instruction}
 
@@ -38,7 +38,7 @@ TASK_PROMPT = """
 
 严格按以下格式输出: v,vx,vy
 
-其中 v 是 f/l/r/b 之一，vx (0-639) 为水平像素坐标，vy (0-479) 为垂直像素坐标。
+其中 v 是 f/l/r 之一，vx (0-639) 为水平像素坐标，vy (0-479) 为垂直像素坐标。
 
 如果你认为已经完成当前任务要求，请输出: v,0,0
 
@@ -103,7 +103,7 @@ class VLMNavigator:
                 semantic_map=None, subtask_start_pose=None):
         """
         Args:
-            images_dict: {"front": (H,W,3), "left": ..., "right": ..., "back": ...} BGR uint8
+            images_dict: {"front": (H,W,3), "left": ..., "right": ...} BGR uint8
             instruction: navigation task instruction
             pose: 可选 (nav_x, nav_y, nav_yaw) — 用于前视历史记忆的增量判定
             semantic_map: 可选 BGR 俯视语义地图 (和慢系统共用同一张)
@@ -279,12 +279,12 @@ class VLMNavigator:
     #  诊断模式
     # ------------------------------------------------------------------
 
-    DIAG_PROMPT = """上方图像是导航机器人四个方向的相机视图。
+    DIAG_PROMPT = """上方图像是导航机器人三个方向的相机视图。
 
 导航任务: {instruction}
 
 请完成以下工作:
-1. 简要描述你在每张图像中看到的内容(前/左/右/后)，每个 1-2 句
+1. 简要描述你在每张图像中看到的内容(前/左/右)，每个 1-2 句
 2. 分析哪个方向最有可能通往其他房间或任务目标，并说明原因
 3. 给出你的导航决策
 
@@ -293,7 +293,6 @@ class VLMNavigator:
 front: ...
 left: ...
 right: ...
-back: ...
 
 === 决策推理 ===
 ...
@@ -307,7 +306,7 @@ back: ...
         结果保存到 save_dir/step_XXXX_diag.txt + 四张原图。
 
         Args:
-            images_dict: {"front": ..., "left": ..., "right": ..., "back": ...} BGR
+            images_dict: {"front": ..., "left": ..., "right": ...} BGR
             instruction: 任务指令
             step: 当前步数
             save_dir: 保存目录

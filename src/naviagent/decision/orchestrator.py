@@ -134,7 +134,7 @@ class TaskOrchestrator:
              views_bgr: Optional[dict] = None):
         """每步主循环调用一次(非阻塞)。
 
-        views_bgr: 当前帧四视角 BGR 图像 dict {"front": ..., "left": ..., "right": ..., "back": ...},
+        views_bgr: 当前帧三视角 BGR 图像 dict {"front": ..., "left": ..., "right": ...},
                    会和语义地图一起喂给 planner。
         """
         if self.is_done:
