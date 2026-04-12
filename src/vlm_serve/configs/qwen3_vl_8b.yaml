@@ -10,4 +10,4 @@ gpu_memory_utilization: 0.9
 trust_remote_code: true
 extra_args:
   - --limit-mm-per-prompt
-  - image=1
+  - '{"image": 1}'

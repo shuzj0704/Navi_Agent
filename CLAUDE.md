@@ -36,6 +36,24 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 
 两个环境不可混装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D）。
 
+## 机器与远程访问
+
+| 角色 | 主机 | 用途 |
+|------|------|------|
+| 本机（local） | `shu22@shu22` | Isaac Sim 5.1 仿真 + 数据采集 + 调试，单卡 RTX 4070 Ti SUPER (16GB) |
+| 远程服务器 | `ps@ps2` | VLM 推理（Qwen3.5-9B / Qwen3-VL-8B 的 vLLM 服务）、训练 |
+
+- 连接方式：本机已经在 `~/.ssh/config` 配好别名,直接 `ssh ps2` 即可登录,无需 `user@host` 写法
+- **典型工作流**：仿真在本机跑,VLM 推理走远程,通过 SSH 端口转发把远程 vLLM 暴露到本机:
+  ```bash
+  # 本机 terminal: 把 ps2 上的 vLLM (本例端口 8000) 映射到本机 18004
+  ssh -fN -L 18004:localhost:8000 ps2
+  curl http://localhost:18004/v1/models   # 验证 tunnel 通了
+  # 然后本机跑仿真,显式 --base-url http://localhost:18004/v1
+  ```
+- **常见坑**：远程 vLLM 的 `--port` 取决于实际启动命令(可能不是仓库默认 8004),用前 `ssh ps2 'ss -tlnp | grep python'` 确认真实端口
+- ⚠️ 不要在 ps2 上对自己再起 `ssh -L 8004:localhost:8004 ps2` — 自循环会占住端口且任何连接都会被立刻断开,曾经踩过
+
 ## 关键文档
 
 | 文件 | 内容 |
