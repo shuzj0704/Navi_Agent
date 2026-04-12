@@ -1,0 +1,32 @@
+# 导航 VLM 客户端配置
+# ====================
+# system1: 反应式导航 (VLMNavigator, 快速响应)
+# system2: 慢思考规划 (System2Planner, 深度推理)
+#
+# 用法:
+#   python src/scripts/nav_main.py --vlm-config src/vlm_server/configs/nav_vlm.yaml
+#
+# api_key 支持 $ENV_VAR 语法, 例如: api_key: "$DASHSCOPE_API_KEY"
+
+# ---- 本地 vLLM 服务器 (默认) ----
+system1:
+  api_url: "http://10.100.0.1:8000/v1"
+  api_key: "none"
+  model: "qwen3-vl"
+  temperature: 1.0
+  max_tokens: 100
+  enable_thinking: false
+  extra_body:
+    chat_template_kwargs:
+      enable_thinking: false
+
+system2:
+  api_url: "http://10.100.0.1:8000/v1"
+  api_key: "none"
+  model: "qwen3-vl"
+  temperature: 1.0
+  max_tokens: 2048
+  enable_thinking: true
+  extra_body:
+    chat_template_kwargs:
+      enable_thinking: true

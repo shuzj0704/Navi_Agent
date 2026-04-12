@@ -4,7 +4,7 @@ VLM Navigation Module
 Send 4-view images + task instruction to Qwen3.0-VL, parse output (view, vx, vy).
 
 Usage:
-    vlm = VLMNavigator(api_url="http://192.168.1.137:8000/v1")
+    vlm = VLMNavigator(api_url="http://10.100.0.1:8000/v1")
     result = vlm.predict(images_dict, "Go to the sofa in the living room")
     # result = ("front", 320, 200) or None
 """
@@ -45,24 +45,38 @@ TASK_PROMPT = """
 除此之外不要输出任何其他内容。"""
 
 
-DEFAULT_VLM_API_URL = "http://192.168.1.137:8000/v1"
+DEFAULT_VLM_API_URL = "http://10.100.0.1:8000/v1"
 DEFAULT_VLM_API_KEY = "none"
 DEFAULT_VLM_MODEL = "qwen3-vl"
 
 
 class VLMNavigator:
     def __init__(self, api_url=None, api_key=None, model=None,
-                 temperature=1.0, max_tokens=100, history_len=1):
-        """System 1 反应式 VLM, 默认走局域网 vLLM 端点上的 qwen-vl。
-        api_url / api_key / model 留 None 时, 优先读环境变量
-        VLM1_API_URL / VLM1_API_KEY / VLM1_MODEL, 否则用模块级默认值。
+                 temperature=1.0, max_tokens=100, history_len=1,
+                 config=None):
+        """System 1 反应式 VLM。
+
+        优先级: config > 显式参数 > 环境变量 > 模块默认值。
+
+        Args:
+            config: VLMEndpointConfig, 从 YAML 加载的配置。
+                    传入后 api_url/api_key/model/temperature/max_tokens 从中取值。
         """
-        api_url = api_url or os.environ.get(
-            "VLM1_API_URL", DEFAULT_VLM_API_URL)
-        api_key = api_key or os.environ.get(
-            "VLM1_API_KEY", DEFAULT_VLM_API_KEY)
-        model = model or os.environ.get(
-            "VLM1_MODEL", DEFAULT_VLM_MODEL)
+        if config is not None:
+            api_url = config.api_url
+            api_key = config.api_key
+            model = config.model
+            temperature = config.temperature
+            max_tokens = config.max_tokens
+            self._extra_body = config.extra_body
+        else:
+            api_url = api_url or os.environ.get(
+                "VLM1_API_URL", DEFAULT_VLM_API_URL)
+            api_key = api_key or os.environ.get(
+                "VLM1_API_KEY", DEFAULT_VLM_API_KEY)
+            model = model or os.environ.get(
+                "VLM1_MODEL", DEFAULT_VLM_MODEL)
+            self._extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
 
         self.client = OpenAI(base_url=api_url, api_key=api_key)
         self.api_url = api_url
@@ -179,7 +193,7 @@ class VLMNavigator:
                 messages=messages,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                extra_body=self._extra_body,
             )
             raw = resp.choices[0].message.content.strip()
         except Exception as e:
@@ -332,7 +346,7 @@ back: ...
                 messages=messages,
                 max_tokens=500,
                 temperature=self.temperature,
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                extra_body=self._extra_body,
             )
             raw = resp.choices[0].message.content.strip()
         except Exception as e:

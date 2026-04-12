@@ -24,13 +24,13 @@ import time
 
 from naviagent.perception import get_camera_intrinsics, YOLOESegmentor, SemanticMapper, SimClientObsReader
 from naviagent.decision import DWAPlanner, TurnController, VLMNavigator, TaskOrchestrator, NavigationEngine
+from naviagent.vlm.vlm_config import load_nav_vlm_config
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
 OUTPUT_DIR = "/home/nuc/vln/output/nav"
 DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口，停在该出口前。"
 DEFAULT_SIM_URL = "http://localhost:5100"
-VLM_API_URL = "http://192.168.1.137:8000/v1"
 
 # 传感器配置 (仅用于 ObsReader 计算内参, 需与 sim_server.yaml 一致)
 SENSOR_CONFIGS = {
@@ -56,7 +56,11 @@ def main():
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--plan-map-size", type=int, default=640)
     parser.add_argument("--plan-map-scale", type=int, default=25)
+    parser.add_argument("--vlm-config", type=str, default=None,
+                        help="VLM 配置 YAML 路径 (e.g. src/vlm_server/configs/nav_vlm.yaml)")
     args = parser.parse_args()
+
+    vlm_cfg = load_nav_vlm_config(args.vlm_config)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -91,7 +95,7 @@ def main():
         vlm = None
         print("使用 Mock VLM (目标: 画面中心)")
     else:
-        vlm = VLMNavigator()
+        vlm = VLMNavigator(config=vlm_cfg.system1)
         print(f"System1 VLM 已连接: {vlm.api_url} model={vlm.model}")
         print(f"任务指令: {args.instruction}")
 
@@ -99,15 +103,14 @@ def main():
     if vlm is not None and not args.no_planner:
         orchestrator = TaskOrchestrator(
             full_instruction=args.instruction,
-            api_url=VLM_API_URL,
+            vlm_config=vlm_cfg.system2,
             heartbeat_steps=args.plan_heartbeat,
             map_size=args.plan_map_size,
             map_scale=args.plan_map_scale,
-            enable_thinking=not args.no_thinking,
             mapped_classes=list(yoloe.classes),
             on_subtask_change=lambda _sub: vlm.reset_history(),
         )
-        print(f"[Orchestrator] 双系统已启用")
+        print(f"[Orchestrator] 双系统已启用 (System2: {vlm_cfg.system2.api_url} model={vlm_cfg.system2.model})")
     else:
         print("[Orchestrator] 未启用")
 

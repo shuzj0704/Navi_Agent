@@ -34,13 +34,13 @@ import cv2
 
 from naviagent.perception import get_camera_intrinsics, YOLOESegmentor, SemanticMapper, SimClientObsReader
 from naviagent.decision import DWAPlanner, TurnController, VLMNavigator, TaskOrchestrator, NavigationEngine
+from naviagent.vlm.vlm_config import load_nav_vlm_config
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
 DATASET_DIR = "/home/nuc/vln/data/vln_ce/R2R_VLNCE_v1-3"
 SCENE_DIR = "/home/nuc/vln/data/scene_data/mp3d"
 DEFAULT_SIM_URL = "http://localhost:5100"
-VLM_API_URL = "http://192.168.1.137:8000/v1"
 
 SENSOR_CONFIGS = {
     "front_depth": {"width": 640, "height": 480, "hfov": 120},
@@ -221,7 +221,11 @@ def main():
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--plan-map-size", type=int, default=640)
     parser.add_argument("--plan-map-scale", type=int, default=25)
+    parser.add_argument("--vlm-config", type=str, default=None,
+                        help="VLM 配置 YAML 路径 (e.g. src/vlm_server/configs/nav_vlm.yaml)")
     args = parser.parse_args()
+
+    vlm_cfg = load_nav_vlm_config(args.vlm_config)
 
     episode_ids = [int(x) for x in args.episode_ids.split(",")] if args.episode_ids else None
     episodes = load_episodes(args.split, episode_ids, args.max_episodes)
@@ -242,7 +246,7 @@ def main():
 
     dwa = DWAPlanner()
     turn_ctrl = TurnController()
-    vlm = None if args.mock else VLMNavigator()
+    vlm = None if args.mock else VLMNavigator(config=vlm_cfg.system1)
 
     from datetime import datetime
     eval_dir = os.path.join(args.output_dir, f"{args.split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
@@ -281,11 +285,10 @@ def main():
         orchestrator_kwargs = None
         if not args.no_planner and vlm is not None and mapper is not None:
             orchestrator_kwargs = dict(
-                api_url=VLM_API_URL,
+                vlm_config=vlm_cfg.system2,
                 heartbeat_steps=args.plan_heartbeat,
                 map_size=args.plan_map_size,
                 map_scale=args.plan_map_scale,
-                enable_thinking=not args.no_thinking,
                 mapped_classes=yoloe_classes,
             )
 

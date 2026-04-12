@@ -78,14 +78,32 @@ class System2Planner:
     """后台线程池封装的 Qwen3.0-VL 规划调用。"""
 
     def __init__(self,
-                 api_url: str = "http://192.168.1.137:8000/v1",
+                 api_url: str = "http://10.100.0.1:8000/v1",
                  model: str = "qwen3-vl",
                  temperature: float = 0.3,
                  max_tokens: int = 2048,
                  enable_thinking: bool = True,
                  jpeg_quality: int = 90,
-                 mapped_classes: Optional[List[str]] = None):
-        self.client = OpenAI(base_url=api_url, api_key="none")
+                 mapped_classes: Optional[List[str]] = None,
+                 config=None):
+        """System 2 规划器。
+
+        Args:
+            config: VLMEndpointConfig, 传入后覆盖 api_url/model/temperature/max_tokens/enable_thinking。
+        """
+        if config is not None:
+            api_url = config.api_url
+            api_key = config.api_key
+            model = config.model
+            temperature = config.temperature
+            max_tokens = config.max_tokens
+            enable_thinking = config.enable_thinking
+            self._extra_body = config.extra_body
+        else:
+            api_key = "none"
+            self._extra_body = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
+
+        self.client = OpenAI(base_url=api_url, api_key=api_key)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -179,11 +197,7 @@ class System2Planner:
                 messages=messages,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                extra_body={
-                    "chat_template_kwargs": {
-                        "enable_thinking": self.enable_thinking
-                    }
-                },
+                extra_body=self._extra_body,
             )
             raw = resp.choices[0].message.content.strip()
         except Exception as e:

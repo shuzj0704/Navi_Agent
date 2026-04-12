@@ -47,7 +47,7 @@ INITIAL_DECOMPOSITION_HINT = (
 class TaskOrchestrator:
     def __init__(self,
                  full_instruction: str,
-                 api_url: str = "http://192.168.1.137:8000/v1",
+                 api_url: str = "http://10.100.0.1:8000/v1",
                  model: str = "qwen3-vl",
                  heartbeat_steps: int = 15,
                  map_size: int = 640,
@@ -58,7 +58,8 @@ class TaskOrchestrator:
                  max_stop_overrides: int = 2,
                  override_decay_steps: int = 8,
                  on_subtask_change: Optional[Callable[[str], None]] = None,
-                 verbose: bool = True):
+                 verbose: bool = True,
+                 vlm_config=None):
         self.full_instruction = full_instruction.strip()
         self._on_subtask_change = on_subtask_change or (lambda _subtask: None)
         self.heartbeat_steps = heartbeat_steps
@@ -78,11 +79,17 @@ class TaskOrchestrator:
         self._nav_pose: Optional[Tuple[float, float, float]] = None
 
         # 规划器
-        self.planner = System2Planner(
-            api_url=api_url, model=model,
-            enable_thinking=enable_thinking,
-            mapped_classes=mapped_classes,
-        )
+        if vlm_config is not None:
+            self.planner = System2Planner(
+                config=vlm_config,
+                mapped_classes=mapped_classes,
+            )
+        else:
+            self.planner = System2Planner(
+                api_url=api_url, model=model,
+                enable_thinking=enable_thinking,
+                mapped_classes=mapped_classes,
+            )
 
         # 异步调度
         self._in_flight: Optional[Future] = None

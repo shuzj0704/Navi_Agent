@@ -1,0 +1,26 @@
+# 云端 API 配置示例 (DashScope / Qwen 官方)
+# ============================================
+# 使用前设置环境变量: export DASHSCOPE_API_KEY="sk-xxxxx"
+#
+# DashScope 兼容 OpenAI 格式, 但 enable_thinking 放在 extra_body 顶层
+# 参考: https://help.aliyun.com/zh/model-studio/developer-reference/use-qwen-by-calling-api
+
+system1:
+  api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_key: "$DASHSCOPE_API_KEY"
+  model: "qwen-vl-max"
+  temperature: 1.0
+  max_tokens: 100
+  enable_thinking: false
+  extra_body:
+    enable_thinking: false
+
+system2:
+  api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_key: "$DASHSCOPE_API_KEY"
+  model: "qwen-vl-max"
+  temperature: 0.3
+  max_tokens: 16384
+  enable_thinking: true
+  extra_body:
+    enable_thinking: true

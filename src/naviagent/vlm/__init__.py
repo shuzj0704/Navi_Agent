@@ -6,3 +6,4 @@ System 1 反应式 VLM 导航 + System 2 慢思考规划器。
 
 from .vlm_navigator import VLMNavigator, VLMAsyncWorker
 from .planner import System2Planner, PlanDecision
+from .vlm_config import VLMEndpointConfig, NavVLMConfig, load_nav_vlm_config
