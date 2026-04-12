@@ -38,10 +38,17 @@ class YOLOESegmentor:
     ]
 
     def __init__(self, model_path="Navi_Agent/models/yoloe-11l-seg.pt", classes=None, conf=0.15):
+        import os
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"YOLOE 模型文件不存在: {model_path}\n"
+                f"如果是从 Git 仓库克隆的项目，请先拉取 LFS 文件:\n"
+                f"  git lfs install && git lfs pull"
+            )
         from ultralytics import YOLOE
         self.model = YOLOE(model_path)
         self.classes = classes or self.DEFAULT_CLASSES
-        self.model.set_classes(self.classes,self.model.get_text_pe(self.classes))
+        self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
         self.conf = conf
 
     def segment(self, rgb, depth=None):
