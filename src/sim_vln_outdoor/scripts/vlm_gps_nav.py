@@ -120,6 +120,11 @@ def parse_args():
              "By default it is derived from the first edge of the route, "
              "so the agent starts already facing forward along the path.",
     )
+    parser.add_argument(
+        "--start-pos", type=float, nargs=3, default=None,
+        help="Override the initial camera position [x, y, z] in meters. "
+             "By default it is taken from the first waypoint of the trajectory.",
+    )
     return parser.parse_args()
 
 
@@ -129,7 +134,7 @@ def main():
     # 1. Load trajectory to get the start pose (must happen before SimulationApp).
     with open(args.trajectory, "r") as f:
         traj = json.load(f)
-    start_pos = list(traj["waypoints"][0]["pos"])
+    start_pos = list(args.start_pos) if args.start_pos else list(traj["waypoints"][0]["pos"])
     goal_pos = list(traj["waypoints"][-1]["pos"])
 
     # The route file is position-only (like a real nav-app polyline). The
@@ -290,6 +295,8 @@ def main():
         "route_length_m": float(traj["total_length_m"]),
         "goal_tol_m": args.goal_tol,
         "controller_freq_hz": args.controller_freq,
+        "start_pos": start_pos,
+        "start_yaw": start_yaw,
         "instruction": args.instruction,
         "trajectory_path": args.trajectory,
         "usd_path": args.usd_path,

@@ -37,8 +37,15 @@ def load_jsonl(path: Path) -> list:
 
 def extract_next_turn(prompt: str) -> str:
     for line in prompt.splitlines():
-        if "NEXT TURN" in line:
-            return line.split("NEXT TURN:", 1)[-1].strip()
+        s = line.strip()
+        # New format: NEXT_TURN = "continue straight"
+        if s.startswith('NEXT_TURN') and '=' in s:
+            rhs = s.split("=", 1)[-1].strip().strip('"')
+            if rhs:
+                return rhs
+        # Old format: NEXT TURN: continue straight
+        if "NEXT TURN:" in s:
+            return s.split("NEXT TURN:", 1)[-1].strip()
     return ""
 
 
@@ -60,12 +67,24 @@ def extract_lookahead(prompt: str) -> list:
 
 
 def extract_field(prompt: str, key: str) -> str:
-    """Pull a `  key: value` line out of the structured prompt."""
+    """Pull a `  key: value` field out of the structured prompt.
+
+    Handles both standalone lines (`heading: 90 deg`) and fields embedded
+    in a longer line (`position: (x, y)   heading: 90 deg`).
+    """
     needle = f"{key}:"
     for line in prompt.splitlines():
         s = line.strip()
-        if s.startswith(needle):
-            return s[len(needle):].strip()
+        idx = s.find(needle)
+        if idx == -1:
+            continue
+        # Value runs from after the colon to the next double-space or EOL
+        after = s[idx + len(needle):].strip()
+        # Trim at double-space boundary (next field on same line)
+        dbl = after.find("   ")
+        if dbl > 0:
+            after = after[:dbl].strip()
+        return after
     return ""
 
 
