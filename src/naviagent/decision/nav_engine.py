@@ -378,10 +378,7 @@ class NavigationEngine:
         """提交一次新的后台 VLM 调用"""
         sem_for_vlm = None
         if self.mapper is not None:
-            sem_for_vlm = self.mapper.render_topdown(
-                agent_x=self.nav.x, agent_y=self.nav.y, agent_yaw=self.nav.yaw,
-                map_size=480, scale=40, trajectory=self.trajectory,
-            )
+            sem_for_vlm = list(self.mapper.objects)
         self._pending_snapshot = {
             "views": {k: v.copy() for k, v in obs.views_bgr.items()},
             "front_depth": obs.front_depth.copy(),
@@ -395,7 +392,7 @@ class NavigationEngine:
                 self._pending_snapshot["nav_y"],
                 self._pending_snapshot["nav_yaw"],
             ),
-            semantic_map=sem_for_vlm,
+            semantic_objects=sem_for_vlm,
             subtask_start_pose=(
                 self.orchestrator.subtask_start_pose
                 if self.orchestrator is not None else None

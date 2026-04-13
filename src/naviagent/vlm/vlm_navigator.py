@@ -26,7 +26,7 @@ from ..common.view_constants import VIEW_ORDER, VIEW_ABBR, ABBR_TO_VIEW, VIEW_LA
 # ---- 前视历史记忆阈值 ----
 FRONT_MEMORY_MAX_LEN = 4
 FRONT_MEMORY_MIN_DIST = 0.5            # m
-FRONT_MEMORY_MIN_ANGLE = math.radians(30.0)
+FRONT_MEMORY_MIN_ANGLE = math.radians(20.0)
 
 TASK_PROMPT = """
 
@@ -100,13 +100,14 @@ class VLMNavigator:
         return {"history": list(self.history)}
 
     def predict(self, images_dict, instruction, step=None, pose=None,
-                semantic_map=None, subtask_start_pose=None):
+                semantic_objects=None, subtask_start_pose=None):
         """
         Args:
             images_dict: {"front": (H,W,3), "left": ..., "right": ...} BGR uint8
             instruction: navigation task instruction
             pose: 可选 (nav_x, nav_y, nav_yaw) — 用于前视历史记忆的增量判定
-            semantic_map: 可选 BGR 俯视语义地图 (和慢系统共用同一张)
+            semantic_objects: 可选 list[Object3D] 全局物体列表; 将按当前 pose
+                转换为机器人坐标系下的结构化文字传入 (物体类型 + 位置)
             subtask_start_pose: 可选 (x, y, yaw) 当前子任务下发时的起始位姿
         Returns:
             (view, vx, vy) or None (parse failed)
@@ -118,17 +119,29 @@ class VLMNavigator:
             content.append({
                 "type": "text",
                 "text": (
+                    "这是你当前的任务执行进度,请自行判断执行到哪一步任务了。"
                     f"以下是过去 {len(self.front_memory)} 个位置的前视图"
-                    f"(按时间从早到晚排列), 仅供空间记忆参考; 决策请以下面的"
-                    f"当前四视角为准。"
+                    "(按时间从早到晚排列, 每帧附带当时的模型输出与位姿), "
+                    "仅供空间记忆与进度参考; 决策请以下面的当前四视角为准。"
                 ),
             })
             for i, entry in enumerate(self.front_memory):
                 t_back = len(self.front_memory) - i
-                content.append({
-                    "type": "text",
-                    "text": f"[历史前视 t-{t_back}] step={entry.get('step','?')}",
-                })
+                act = entry.get("action")
+                if act is None:
+                    act_txt = "action=N/A"
+                elif isinstance(act, tuple) and act[0] == "stop":
+                    act_txt = "action=stop"
+                else:
+                    v, vx, vy = act
+                    act_txt = f"action={VIEW_ABBR[v]},{vx},{vy}"
+                ex, ey, eyaw = entry["x"], entry["y"], entry["yaw"]
+                meta = (
+                    f"[历史前视 t-{t_back}] step={entry.get('step','?')} | "
+                    f"pose=({ex:.2f},{ey:.2f}) yaw={math.degrees(eyaw):.0f}° | "
+                    f"{act_txt}"
+                )
+                content.append({"type": "text", "text": meta})
                 _, buf = cv2.imencode(
                     ".jpg", entry["bgr"], [cv2.IMWRITE_JPEG_QUALITY, 85]
                 )
@@ -151,21 +164,11 @@ class VLMNavigator:
                 "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
             })
 
-        # 2. 语义地图 (俯视, 可选)
-        if semantic_map is not None and semantic_map.size > 0:
-            ok, buf = cv2.imencode(".jpg", semantic_map,
-                                   [cv2.IMWRITE_JPEG_QUALITY, 85])
-            if ok:
-                b64 = base64.b64encode(buf).decode()
-                content.append({
-                    "type": "text",
-                    "text": ("[语义地图，俯视视角] 绿点=机器人, 浅绿线=轨迹, "
-                             "彩色框=检出物体; 用于参考全局布局和探索进度。"),
-                })
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                })
+        # 2. 语义物体列表 (以机器人坐标系位置的结构化文字传入)
+        if semantic_objects and pose is not None:
+            sem_text = self._format_semantic_objects(semantic_objects, pose)
+            if sem_text:
+                content.append({"type": "text", "text": sem_text})
 
         # 3. 位姿上下文: 子任务起始位姿 vs 当前位姿
         if subtask_start_pose is not None and pose is not None:
@@ -204,13 +207,42 @@ class VLMNavigator:
 
         print(f"[VLM raw] {raw}")
 
-        # 5. 若提供 pose 且本帧相对上一记忆帧满足阈值, 把当前前视存进 front_memory
+        parsed = self._parse_response(raw)
+
+        # 5. 若提供 pose 且本帧相对上一记忆帧满足阈值, 把当前前视+动作存进 front_memory
         if pose is not None:
-            self._maybe_push_front_memory(images_dict["front"], pose, step)
+            self._maybe_push_front_memory(images_dict["front"], pose, step, parsed)
 
-        return self._parse_response(raw)
+        return parsed
 
-    def _maybe_push_front_memory(self, front_bgr, pose, step):
+    @staticmethod
+    def _format_semantic_objects(objects, pose):
+        """把全局物体列表转成机器人坐标系下的结构化文字。
+
+        机器人坐标系: x=前, y=左 (单位 m)。
+        """
+        rx, ry, ryaw = pose
+        cy, sy = math.cos(ryaw), math.sin(ryaw)
+        lines = []
+        for obj in objects:
+            try:
+                gx, gy = float(obj.center[0]), float(obj.center[1])
+                label = obj.label
+            except (AttributeError, IndexError, TypeError):
+                continue
+            dx, dy = gx - rx, gy - ry
+            fwd = cy * dx + sy * dy
+            left = -sy * dx + cy * dy
+            lines.append(f"- {label}: (前={fwd:+.2f}m, 左={left:+.2f}m)")
+        if not lines:
+            return ""
+        header = (
+            f"[语义物体 — 机器人坐标系, x=前 y=左, 共 {len(lines)} 个] "
+            "用于参考全局布局和已探索物体位置:"
+        )
+        return header + "\n" + "\n".join(lines)
+
+    def _maybe_push_front_memory(self, front_bgr, pose, step, action=None):
         x, y, yaw = pose
         if self.front_memory:
             last = self.front_memory[-1]
@@ -228,6 +260,7 @@ class VLMNavigator:
             "bgr": img.copy(),
             "x": float(x), "y": float(y), "yaw": float(yaw),
             "step": step,
+            "action": action,
         })
         if len(self.front_memory) > FRONT_MEMORY_MAX_LEN:
             self.front_memory = self.front_memory[-FRONT_MEMORY_MAX_LEN:]
@@ -390,21 +423,21 @@ class VLMAsyncWorker:
         )
 
     def submit(self, views_bgr, instruction, step, pose=None,
-               semantic_map=None, subtask_start_pose=None):
+               semantic_objects=None, subtask_start_pose=None):
         snapshot = {k: v.copy() for k, v in views_bgr.items()}
-        sem_copy = semantic_map.copy() if semantic_map is not None else None
+        sem_copy = list(semantic_objects) if semantic_objects else None
         return self._exec.submit(
             self._call, snapshot, instruction, step, pose, sem_copy,
             subtask_start_pose,
         )
 
-    def _call(self, views_bgr, instruction, step, pose, semantic_map,
+    def _call(self, views_bgr, instruction, step, pose, semantic_objects,
               subtask_start_pose):
         if self.vlm is None:
             return ("front", 320, 240)
         return self.vlm.predict(
             views_bgr, instruction, step=step, pose=pose,
-            semantic_map=semantic_map,
+            semantic_objects=semantic_objects,
             subtask_start_pose=subtask_start_pose,
         )
 
