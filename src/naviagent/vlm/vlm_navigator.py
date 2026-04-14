@@ -24,25 +24,42 @@ from ..common.view_constants import VIEW_ORDER, VIEW_ABBR, ABBR_TO_VIEW, VIEW_LA
 
 
 # ---- 前视历史记忆阈值 ----
-FRONT_MEMORY_MAX_LEN = 4
+FRONT_MEMORY_MAX_LEN = 8
 FRONT_MEMORY_MIN_DIST = 0.5            # m
 FRONT_MEMORY_MIN_ANGLE = math.radians(20.0)
 
 TASK_PROMPT = """
 
-你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x480 像素，原点 (0,0) 位于左上角。
+你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x640 像素，原点 (0,0) 位于左上角。
 
 你的导航任务是: {instruction}
 
-请选择前进方向，并在该方向视图中可通行区域(地面/门口/走廊)上挑选一个目标像素。
+请输出以下三种动作之一(且仅一种):
+  - F     : 沿当前朝向直行一步 (前视图中的可通行区域足够前进时)
+  - L     : 原地左转 (左侧视图更可能通往目标, 或前方受阻需要换方向)
+  - R     : 原地右转 (右侧视图更可能通往目标, 或前方受阻需要换方向)
 
-严格按以下格式输出: v,vx,vy
+如果你认为已经完成当前任务要求(例如已抵达目标物前 1-2 米), 请输出: STOP
 
-其中 v 是 f/l/r 之一，vx (0-639) 为水平像素坐标，vy (0-479) 为垂直像素坐标。
+严格按上述格式输出, 仅输出 F / L / R / STOP 中的一个, 不要任何其他内容、解释、引号或标点。"""
 
-如果你认为已经完成当前任务要求，请输出: v,0,0
 
-除此之外不要输出任何其他内容。"""
+def _format_action_text(act):
+    """把 (view, vx, vy) 动作元组渲染成新格式 'L' / 'R' / 'x,y' / 'STOP'。"""
+    if act is None:
+        return "action=N/A"
+    if not isinstance(act, tuple) or len(act) < 1:
+        return f"action={act}"
+    v = act[0]
+    if v == "stop":
+        return "action=STOP"
+    if v == "left":
+        return "action=L"
+    if v == "right":
+        return "action=R"
+    if v == "front":
+        return "action=F"
+    return f"action={act}"
 
 
 DEFAULT_VLM_API_URL = "http://10.100.0.1:8000/v1"
@@ -128,13 +145,7 @@ class VLMNavigator:
             for i, entry in enumerate(self.front_memory):
                 t_back = len(self.front_memory) - i
                 act = entry.get("action")
-                if act is None:
-                    act_txt = "action=N/A"
-                elif isinstance(act, tuple) and act[0] == "stop":
-                    act_txt = "action=stop"
-                else:
-                    v, vx, vy = act
-                    act_txt = f"action={VIEW_ABBR[v]},{vx},{vy}"
+                act_txt = _format_action_text(act)
                 ex, ey, eyaw = entry["x"], entry["y"], entry["yaw"]
                 meta = (
                     f"[历史前视 t-{t_back}] step={entry.get('step','?')} | "
@@ -155,8 +166,8 @@ class VLMNavigator:
         for vname in VIEW_ORDER:
             content.append({"type": "text", "text": VIEW_LABELS[vname]})
             img = images_dict[vname]
-            if img.shape[0] != 480 or img.shape[1] != 640:
-                img = cv2.resize(img, (640, 480))
+            if img.shape[0] != 640 or img.shape[1] != 640:
+                img = cv2.resize(img, (640, 640))
             _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
             b64 = base64.b64encode(buf).decode()
             content.append({
@@ -168,6 +179,7 @@ class VLMNavigator:
         if semantic_objects and pose is not None:
             sem_text = self._format_semantic_objects(semantic_objects, pose)
             if sem_text:
+                print(f"[VLM] Semantic objects:\n{sem_text}")
                 content.append({"type": "text", "text": sem_text})
 
         # 3. 位姿上下文: 子任务起始位姿 vs 当前位姿
@@ -254,8 +266,8 @@ class VLMNavigator:
                 return  # 太近也没转, 跳过
 
         img = front_bgr
-        if img.shape[0] != 480 or img.shape[1] != 640:
-            img = cv2.resize(img, (640, 480))
+        if img.shape[0] != 640 or img.shape[1] != 640:
+            img = cv2.resize(img, (640, 640))
         self.front_memory.append({
             "bgr": img.copy(),
             "x": float(x), "y": float(y), "yaw": float(yaw),
@@ -266,47 +278,45 @@ class VLMNavigator:
             self.front_memory = self.front_memory[-FRONT_MEMORY_MAX_LEN:]
 
     def _parse_response(self, raw):
-        """Parse VLM output 'v,vx,vy' to (view, vx, vy), or 'stop' to ("stop", 0, 0)"""
+        """解析 F / L / R / STOP, 返回 (action, 0, 0) 兼容下游元组结构:
+            'F'    → ('front', 0, 0)
+            'L'    → ('left',  0, 0)
+            'R'    → ('right', 0, 0)
+            'STOP' → ('stop',  0, 0)
+        """
         import re
 
-        token = raw.strip().lower()
-        if token == "stop":
-            print("[VLM] Model decided: STOP (target reached)")
-            return "stop", 0, 0
-
-        m = re.search(r'([flrb])\s*,\s*(\d+)\s*,\s*(\d+)', raw)
+        token = raw.strip().strip("`'\"")
+        # 取首个字母字符
+        m = re.search(r'[a-zA-Z]+', token)
         if not m:
             print(f"[VLM] Parse failed: {raw}")
             return None
+        word = m.group(0).lower()
 
-        abbr = m.group(1)
-        view = ABBR_TO_VIEW[abbr]
-
-        try:
-            vx = int(m.group(2))
-            vy = int(m.group(3))
-        except (ValueError, TypeError):
-            print(f"[VLM] Invalid coordinates: {raw}")
-            return None
-
-        # v,0,0 表示到达目标
-        if vx == 0 and vy == 0:
-            print(f"[VLM] Model decided: STOP ({abbr},0,0)")
+        if word in ("stop", "done", "finish", "finished", "s"):
+            print("[VLM] Model decided: STOP (target reached)")
             return "stop", 0, 0
+        if word in ("f", "forward", "front", "go"):
+            self._record_history("front", 0, 0)
+            return "front", 0, 0
+        if word in ("l", "left"):
+            self._record_history("left", 0, 0)
+            return "left", 0, 0
+        if word in ("r", "right"):
+            self._record_history("right", 0, 0)
+            return "right", 0, 0
 
-        # clamp to valid range
-        vx = max(0, min(vx, 639))
-        vy = max(0, min(vy, 479))
+        print(f"[VLM] Parse failed: {raw}")
+        return None
 
-        # record history
+    def _record_history(self, view, vx, vy):
         self.history.append({
             "step": len(self.history),
             "view": view, "vx": vx, "vy": vy,
         })
         if len(self.history) > self.history_len:
             self.history = self.history[-self.history_len:]
-
-        return view, vx, vy
 
     # ------------------------------------------------------------------
     #  诊断模式
@@ -353,8 +363,8 @@ right: ...
         for vname in VIEW_ORDER:
             content.append({"type": "text", "text": VIEW_LABELS[vname]})
             img = images_dict[vname]
-            if img.shape[0] != 480 or img.shape[1] != 640:
-                img = cv2.resize(img, (640, 480))
+            if img.shape[0] != 640 or img.shape[1] != 640:
+                img = cv2.resize(img, (640, 640))
             _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
             b64 = base64.b64encode(buf).decode()
             content.append({

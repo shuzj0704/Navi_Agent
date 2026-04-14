@@ -28,14 +28,10 @@ from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
 OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output", "nav")
-DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口，停在该出口前。"
+DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口，穿过该出口，找到一个关闭的防火门，停在这个门前。"
 DEFAULT_SIM_URL = "http://localhost:5100"
 
-# 传感器配置 (仅用于 ObsReader 计算内参, 需与 sim_server.yaml 一致)
-SENSOR_CONFIGS = {
-    "front_depth": {"width": 640, "height": 480, "hfov": 120},
-    "low_depth":   {"width": 640, "height": 480, "hfov": 90},
-}
+# 传感器配置由仿真服务器提供 (GET /sensors), 客户端不再硬编码。
 
 
 def main():
@@ -113,13 +109,14 @@ def main():
     else:
         print("[Orchestrator] 未启用")
 
-    front_cfg = SENSOR_CONFIGS["front_depth"]
+    sensor_configs = client.get_sensors()
+    front_cfg = sensor_configs["front_depth"]
     front_intrinsics = get_camera_intrinsics(
         front_cfg["width"], front_cfg["height"], front_cfg["hfov"]
     )
 
     # HTTP 观测读取器 + 导航引擎
-    reader = SimClientObsReader(client, SENSOR_CONFIGS)
+    reader = SimClientObsReader(client, sensor_configs)
     engine = NavigationEngine(
         vlm=vlm, dwa=dwa, turn_ctrl=turn_ctrl,
         front_intrinsics=front_intrinsics,

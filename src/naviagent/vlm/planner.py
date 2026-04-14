@@ -28,7 +28,9 @@ from ..common.view_constants import VIEW_LABELS, VIEW_ORDER, wrap_angle
 
 
 # ---- System 2 前视历史记忆阈值 ----
-PLANNER_FRONT_MEMORY_MAX_LEN = 4
+# 总共保留 20 帧的位姿/动作历史; 其中最近 8 帧附带前视图像。
+PLANNER_FRONT_MEMORY_MAX_LEN = 20
+PLANNER_FRONT_MEMORY_IMAGE_LEN = 8
 PLANNER_FRONT_MEMORY_MIN_DIST = 0.5            # m
 PLANNER_FRONT_MEMORY_MIN_ANGLE = math.radians(30.0)
 
@@ -47,7 +49,7 @@ PLANNER_USER_PROMPT_TEMPLATE = """整体任务: {full_instruction}
 - 当前子任务完成 → advance, 给出下一条单一动作。
 - 当前子任务仍是原始整句、或包含多个动作("然后"/逗号分隔) → 必须 advance, 只返回第一步。
 - 整体目标物体在任一视图中清晰可见且距离约 1-2 米 或者 机器人在语义地图中和目标物很接近 → done。
-- 因 STOP 触发(见 NOTE): 看历史帧前视图和当前帧前视图或者语义图, 看到目标且距离近 → done。
+- 因 STOP 触发(见 NOTE): 在历史帧前视图和当前帧前视图或者语义图中看到目标且距离近 → done。
 - 其余情况, 若 System 1 在有效探索 → continue。
 - 当前子任务无法完成或不合理，就切换至新的子任务。
 
@@ -125,6 +127,8 @@ class System2Planner:
                views_bgr: Optional[dict] = None,
                hint: Optional[str] = None,
                pose: Optional[Tuple[float, float, float]] = None,
+               step: Optional[int] = None,
+               last_action: Optional[tuple] = None,
                ) -> "Future[PlanDecision]":
         """非阻塞提交一次规划调用,返回 Future。
 
@@ -144,6 +148,8 @@ class System2Planner:
             copied_views,
             hint,
             pose,
+            step,
+            last_action,
         )
 
     def shutdown(self):
@@ -160,7 +166,9 @@ class System2Planner:
               semantic_map_bgr: Optional[np.ndarray],
               views_bgr: Optional[dict],
               hint: Optional[str],
-              pose: Optional[Tuple[float, float, float]]) -> PlanDecision:
+              pose: Optional[Tuple[float, float, float]],
+              step: Optional[int] = None,
+              last_action: Optional[tuple] = None) -> PlanDecision:
         t0 = time.time()
 
         if semantic_map_bgr is None or semantic_map_bgr.size == 0:
@@ -184,7 +192,7 @@ class System2Planner:
         if pose is not None and views_bgr is not None:
             front_bgr = views_bgr.get("front")
             if front_bgr is not None:
-                self._maybe_push_front_memory(front_bgr, pose)
+                self._maybe_push_front_memory(front_bgr, pose, step, last_action)
 
         messages = [
             {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
@@ -222,21 +230,33 @@ class System2Planner:
         content: list = []
 
         # 0. 前视历史记忆 (旧 → 新), 仅供空间记忆参考
+        #    总共最多 PLANNER_FRONT_MEMORY_MAX_LEN 帧的位姿+动作; 其中最近
+        #    PLANNER_FRONT_MEMORY_IMAGE_LEN 帧附带前视图。
         if self.front_memory:
+            n = len(self.front_memory)
+            n_img = min(PLANNER_FRONT_MEMORY_IMAGE_LEN, n)
+            img_start = n - n_img  # 索引 >= img_start 才附带图像
             content.append({
                 "type": "text",
                 "text": (
-                    f"以下是过去 {len(self.front_memory)} 个位置的前视图"
-                    f"(按时间从早到晚排列), 仅供空间记忆参考; 决策请以下面的"
-                    f"当前四视角和语义地图为准。"
+                    f"以下是过去 {n} 个位置的位姿与动作历史(按时间从早到晚"
+                    f"排列), 其中最近 {n_img} 帧附带前视图; 仅供空间记忆与"
+                    f"进度参考, 决策请以下面的当前三视角和语义地图为准。"
                 ),
             })
             for i, entry in enumerate(self.front_memory):
-                t_back = len(self.front_memory) - i
-                content.append({
-                    "type": "text",
-                    "text": f"[历史前视 t-{t_back}] step={entry.get('step', '?')}",
-                })
+                t_back = n - i
+                from .vlm_navigator import _format_action_text
+                act_txt = _format_action_text(entry.get("action"))
+                ex, ey, eyaw = entry["x"], entry["y"], entry["yaw"]
+                meta = (
+                    f"[历史 t-{t_back}] step={entry.get('step', '?')} | "
+                    f"pose=({ex:.2f},{ey:.2f}) yaw={math.degrees(eyaw):.0f}° | "
+                    f"{act_txt}"
+                )
+                content.append({"type": "text", "text": meta})
+                if i < img_start:
+                    continue
                 ok, buf = cv2.imencode(
                     ".jpg", entry["bgr"], [cv2.IMWRITE_JPEG_QUALITY, 85]
                 )
@@ -254,8 +274,8 @@ class System2Planner:
                 img = views_bgr.get(vname)
                 if img is None:
                     continue
-                if img.shape[0] != 480 or img.shape[1] != 640:
-                    img = cv2.resize(img, (640, 480))
+                if img.shape[0] != 640 or img.shape[1] != 640:
+                    img = cv2.resize(img, (640, 640))
                 ok, buf = cv2.imencode(
                     ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85]
                 )
@@ -323,7 +343,9 @@ class System2Planner:
 
     def _maybe_push_front_memory(self,
                                  front_bgr: np.ndarray,
-                                 pose: Tuple[float, float, float]):
+                                 pose: Tuple[float, float, float],
+                                 step: Optional[int] = None,
+                                 action: Optional[tuple] = None):
         x, y, yaw = pose
         if self.front_memory:
             last = self.front_memory[-1]
@@ -336,12 +358,13 @@ class System2Planner:
                 return
 
         img = front_bgr
-        if img.shape[0] != 480 or img.shape[1] != 640:
-            img = cv2.resize(img, (640, 480))
+        if img.shape[0] != 640 or img.shape[1] != 640:
+            img = cv2.resize(img, (640, 640))
         self.front_memory.append({
             "bgr": img.copy(),
             "x": float(x), "y": float(y), "yaw": float(yaw),
-            "step": len(self.front_memory),
+            "step": step if step is not None else len(self.front_memory),
+            "action": action,
         })
         if len(self.front_memory) > PLANNER_FRONT_MEMORY_MAX_LEN:
             self.front_memory = self.front_memory[-PLANNER_FRONT_MEMORY_MAX_LEN:]

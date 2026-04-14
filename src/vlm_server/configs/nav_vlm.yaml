@@ -10,23 +10,32 @@
 
 # ---- 本地 vLLM 服务器 (默认) ----
 system1:
-  api_url: "http://10.100.0.1:8000/v1"
-  api_key: "none"
-  model: "qwen3-vl"
+  api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_key: "sk-409c0e3313b840a2a0a8dfbb9f9181c6"
+  model: "qwen3.5-plus"
   temperature: 1.0
   max_tokens: 100
   enable_thinking: false
   extra_body:
-    chat_template_kwargs:
-      enable_thinking: false
+    enable_thinking: false
 
 system2:
-  api_url: "http://10.100.0.1:8000/v1"
-  api_key: "none"
-  model: "qwen3-vl"
+  api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_key: "sk-409c0e3313b840a2a0a8dfbb9f9181c6"
+  model: "qwen3.5-plus"
   temperature: 1.0
-  max_tokens: 2048
-  enable_thinking: true
+  max_tokens: 8192
+  enable_thinking: false
   extra_body:
-    chat_template_kwargs:
-      enable_thinking: true
+    enable_thinking: false
+
+# system1:
+#   api_url: "http://10.100.0.1:8000/v1"
+#   api_key: "none"
+#   model: "qwen3-vl"
+#   temperature: 1.0
+#   max_tokens: 100
+#   enable_thinking: false
+#   extra_body:
+#     chat_template_kwargs:
+#       enable_thinking: false

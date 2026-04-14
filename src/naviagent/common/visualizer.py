@@ -163,7 +163,7 @@ def _draw_view_with_overlay(view_bgr, view_name, vlm_view, vlm_vx, vlm_vy, cam_g
     if (vlm_view == view_name and vlm_vx is not None
             and vlm_vy is not None and view_name == "front"):
         sx = VIS_VIEW_W / 640.0
-        sy = VIS_VIEW_H / 480.0
+        sy = VIS_VIEW_H / 640.0
         px = int(vlm_vx * sx)
         py = int(vlm_vy * sy)
         cv2.circle(img, (px, py), 7, (0, 0, 255), -1)

@@ -18,7 +18,7 @@ class SensorConfig:
     roll: float = 0.0
     hfov: int = 120
     width: int = 640
-    height: int = 480
+    height: int = 640
 
 
 @dataclass
@@ -63,7 +63,7 @@ def load_config(path: str) -> ServerConfig:
             roll=merged.get("roll", 0.0),
             hfov=merged.get("hfov", 120),
             width=merged.get("width", 640),
-            height=merged.get("height", 480),
+            height=merged.get("height", 640),
         )
 
     return ServerConfig(

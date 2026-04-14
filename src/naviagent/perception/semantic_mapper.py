@@ -8,7 +8,7 @@
   1. 分割器 (SAM3/Mock) 对 RGB 分割 → 物体掩码列表
   2. 掩码 + 深度 → 相机系 3D 点 → 全局坐标系 AABB
   3. 与已有物体 3D IoU 匹配，低于阈值才新增
-  4. 俯视图实时渲染: 彩色矩形 + 标签 + 面积
+  4. 俯视图实时渲染: 彩色矩形 + 标签
 
 坐标系: 导航系 x=前, y=左, z=上 (高度)
 """
@@ -64,7 +64,7 @@ class Object3D:
 class SemanticMapper:
     def __init__(self, segmentor=None, overlap_threshold=0.1,
                  camera_height=1.5, camera_pitch_deg=-20.0,
-                 camera_hfov=90, image_width=640, image_height=480,
+                 camera_hfov=90, image_width=640, image_height=640,
                  min_volume=0.01, max_volume=50.0):
         """
         Args:
@@ -290,7 +290,7 @@ class SemanticMapper:
         return img
 
     def _draw_object(self, img, obj, ox, oy, cx, cy, scale, map_size):
-        """画单个物体: 填色矩形 + 标签 + 面积"""
+        """画单个物体: 填色矩形 + 标签"""
         dx = obj.center[0] - ox
         dy = obj.center[1] - oy
         hw = obj.size[0] / 2 * scale
@@ -314,14 +314,11 @@ class SemanticMapper:
         # 边框
         cv2.rectangle(img, (x1, y1), (x2, y2), obj.color, 2)
 
-        # 标签 + 面积
+        # 标签
         text = f"{obj.label}"
-        area_text = f"{obj.footprint_area:.2f}m2"
         ty = max(y1 - 8, 15)
         cv2.putText(img, text, (x1, ty),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 0, 0), 1)
-        cv2.putText(img, area_text, (x1, ty + 14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.32, (80, 80, 80), 1)
 
     @staticmethod
     def _to_px(nx, ny, ox, oy, cx, cy, scale, sz):

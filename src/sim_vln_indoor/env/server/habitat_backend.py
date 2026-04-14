@@ -62,6 +62,21 @@ class HabitatBackend:
             ]
             agent_cfg = habitat_sim.agent.AgentConfiguration()
             agent_cfg.sensor_specifications = sensors
+            # 覆盖默认动作幅度: 左/右转 = 25°, 前进保持 0.25m
+            agent_cfg.action_space = {
+                "move_forward": habitat_sim.agent.ActionSpec(
+                    "move_forward",
+                    habitat_sim.agent.ActuationSpec(amount=0.25),
+                ),
+                "turn_left": habitat_sim.agent.ActionSpec(
+                    "turn_left",
+                    habitat_sim.agent.ActuationSpec(amount=25.0),
+                ),
+                "turn_right": habitat_sim.agent.ActionSpec(
+                    "turn_right",
+                    habitat_sim.agent.ActuationSpec(amount=25.0),
+                ),
+            }
 
             self._sim = habitat_sim.Simulator(
                 habitat_sim.Configuration(sim_cfg, [agent_cfg])

@@ -11,13 +11,13 @@ physics:
   enable: false
 
 camera_defaults:
-  position: [0.0, 0.5, 0.0]
-  pitch: 0.0
+  position: [0.0, 1.0, 0.0]
+  pitch: -20.0
   yaw: 0.0
   roll: 0.0
-  hfov: 120
+  hfov: 90
   width: 640
-  height: 480
+  height: 640
 
 sensors:
   front_rgb:

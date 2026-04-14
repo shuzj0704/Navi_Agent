@@ -72,6 +72,12 @@ class SimClient:
         resp.raise_for_status()
         return resp.json()["scenes"]
 
+    def get_sensors(self) -> Dict[str, dict]:
+        """获取服务端配置的传感器规格 (含 width/height/hfov/position/...)。"""
+        resp = self._session.get(f"{self._url}/sensors")
+        resp.raise_for_status()
+        return resp.json()
+
     # ---- 观测 ----
 
     def get_observations(self) -> Tuple[Dict[str, np.ndarray], AgentState]:

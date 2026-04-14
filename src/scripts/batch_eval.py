@@ -41,10 +41,7 @@ DATASET_DIR = os.path.join(_PROJECT_ROOT, "data", "vln_ce", "R2R_VLNCE_v1-3")
 SCENE_DIR = os.path.join(_PROJECT_ROOT, "data", "scene_data", "mp3d")
 DEFAULT_SIM_URL = "http://localhost:5100"
 
-SENSOR_CONFIGS = {
-    "front_depth": {"width": 640, "height": 480, "hfov": 120},
-    "low_depth":   {"width": 640, "height": 480, "hfov": 90},
-}
+# 传感器配置由仿真服务器提供 (GET /sensors), 客户端不再硬编码。
 
 
 def load_episodes(split="val_seen", episode_ids=None, max_episodes=None):
@@ -101,12 +98,13 @@ def run_episode(episode, client, vlm, dwa, mapper, turn_ctrl,
     print(f"\n  [EP {ep_id}] 指令: {instruction[:80]}...")
     print(f"  [EP {ep_id}] 测地距离: {geodesic_dist:.2f}m")
 
-    front_cfg = SENSOR_CONFIGS["front_depth"]
+    sensor_configs = client.get_sensors()
+    front_cfg = sensor_configs["front_depth"]
     front_intrinsics = get_camera_intrinsics(
         front_cfg["width"], front_cfg["height"], front_cfg["hfov"]
     )
 
-    reader = SimClientObsReader(client, SENSOR_CONFIGS)
+    reader = SimClientObsReader(client, sensor_configs)
     engine = NavigationEngine(
         vlm=vlm, dwa=dwa, turn_ctrl=turn_ctrl,
         front_intrinsics=front_intrinsics,
