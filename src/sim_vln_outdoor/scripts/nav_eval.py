@@ -124,7 +124,7 @@ def create_d435i_camera(camera_pos, camera_rot, headless=False):
         prim_path="/World/D435i_Camera",
         position=np.array(camera_pos, dtype=np.float64),
         orientation=quat,
-        frequency=20,
+        frequency=10,
         resolution=(D435I_WIDTH, D435I_HEIGHT),
     )
 

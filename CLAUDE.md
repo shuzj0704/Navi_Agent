@@ -70,7 +70,7 @@ curl http://localhost:5100/health
 curl http://localhost:5100/scenes
 ```
 
-室内 VLM 推理默认连接 `http://10.100.0.1:8000/v1`（代码中 `VLM_API_URL` 常量）。
+室内 VLM 推理默认连接 `http://localhost:8004/v1`（代码中 `VLM_API_URL` 常量）。
 
 ## Conda 环境
 

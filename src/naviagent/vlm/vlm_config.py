@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 @dataclass
 class VLMEndpointConfig:
     """单个 VLM 端点的连接 + 生成参数。"""
-    api_url: str = "http://10.100.0.1:8000/v1"
+    api_url: str = "http://localhost:8004/v1"
     api_key: str = "none"
     model: str = "qwen3-vl"
     temperature: float = 1.0

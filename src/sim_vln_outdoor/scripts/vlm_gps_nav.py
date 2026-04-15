@@ -47,11 +47,9 @@ sys.path.insert(0, _PACKAGE_ROOT)
 sys.path.insert(0, _SCRIPT_DIR)                          # so we can import nav_eval
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(_PACKAGE_ROOT))  # Navi_Agent/
+sys.path.insert(0, os.path.join(_PROJECT_ROOT, "src"))  # for vlm_server
 
-_CRAFTBENCH_ROOT = os.environ.get(
-    "CRAFTBENCH_ROOT",
-    os.path.expanduser("~/navigation/urban_verse/CraftBench"),
-)
+_CRAFTBENCH_ROOT = "data/urbanverse/CraftBench"
 DEFAULT_USD = os.path.join(
     _CRAFTBENCH_ROOT,
     "scene_09_cbd_t_intersection_construction_sites",

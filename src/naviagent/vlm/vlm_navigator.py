@@ -4,7 +4,7 @@ VLM Navigation Module
 Send 4-view images + task instruction to Qwen3.0-VL, parse output (view, vx, vy).
 
 Usage:
-    vlm = VLMNavigator(api_url="http://10.100.0.1:8000/v1")
+    vlm = VLMNavigator(api_url="http://localhost:8004/v1")
     result = vlm.predict(images_dict, "Go to the sofa in the living room")
     # result = ("front", 320, 200) or None
 """
@@ -65,7 +65,7 @@ def _format_action_text(act):
     return f"action={act}"
 
 
-DEFAULT_VLM_API_URL = "http://10.100.0.1:8000/v1"
+DEFAULT_VLM_API_URL = "http://localhost:8004/v1"
 DEFAULT_VLM_API_KEY = "none"
 DEFAULT_VLM_MODEL = "qwen3-vl"
 
