@@ -313,6 +313,7 @@ def main():
     if frames:
         video_path = output_dir / "nav.mp4"
         input_pattern = str(output_dir / "frames" / "frame_%06d.png")
+        cwd = os.getcwd()
         cmd = [
             "ffmpeg", "-y",
             "-framerate", "30",
@@ -322,6 +323,7 @@ def main():
             str(video_path),
         ]
         print(f"[Info] stitching {len(frames)} frames -> {video_path}")
+        print(f"[Debug] cwd={cwd}, output_dir={output_dir}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"[Done] video -> {video_path}")

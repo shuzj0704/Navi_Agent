@@ -276,7 +276,85 @@ camera = Camera(..., frequency=10, ...)  # 原来是 20
 
 ---
 
-## 7. 输出目录
+## 7. 室内外合并导航
+
+### 7.1 配置文件
+
+编辑 `configs/indoor_outdoor.yaml`:
+
+```yaml
+indoor:
+  scene: "17DRP5sb8fy"           # 室内场景名
+  max_steps: 100
+  door_distance_threshold: 2.0   # 门距离阈值 (m)
+
+outdoor:
+  usd_path: "/path/to/export_version.usd"
+  trajectory: "data/urbanverse/trajectory/scene_09/dense_trajectory.json"
+  max_steps: 200
+
+coordinate_transform:
+  offset_x: -730.0
+  offset_y: 490.0
+
+vlm:
+  api_url: "http://localhost:8004/v1"
+  model: "qwen3-vl"
+```
+
+### 7.2 启动
+
+```bash
+# 终端 1: 启动 Habitat 仿真服务器
+conda activate internav_habitat
+xvfb-run -a python -m sim_vln_indoor.env.server --port 5100
+
+# 终端 2: 启动 vLLM (可选，如需 VLM)
+conda activate lwy_swift
+CUDA_VISIBLE_DEVICES=3 vllm serve /path/to/Qwen3-VL-8B-Instruct/ \
+  --served-model-name qwen3-vl --port 8004
+
+# 终端 3: 运行室内外合并导航
+conda activate internav_habitat
+python src/scripts/indoor_outdoor_nav.py --config configs/indoor_outdoor.yaml
+```
+
+### 7.3 输出
+
+| 类型 | 路径 |
+|------|------|
+| 合并输出 | `output/indoor_outdoor/<timestamp>/` |
+| 室内视频 | `output/indoor_outdoor/<timestamp>/indoor/nav_debug.mp4` |
+| 室外视频 | `data/urbanverse/vlm_gps_nav/<timestamp>/nav.mp4` |
+| 评测指标 | `output/indoor_outdoor/<timestamp>/summary.json` |
+
+### 7.4 评测指标 (summary.json)
+
+```json
+{
+  "indoor": {
+    "scene": "17DRP5sb8fy",
+    "steps": 45,
+    "success": true,
+    "door_distance_m": 1.2,
+    "door_position": [x, y, z]
+  },
+  "outdoor": {
+    "scene": "scene_09",
+    "steps": 80,
+    "success": true,
+    "final_distance_m": 1.5
+  },
+  "overall": {
+    "total_steps": 125,
+    "success": true
+  }
+}
+```
+
+---
+
+## 8. 输出目录
 
 | 类型 | 路径 |
 |------|------|
