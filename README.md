@@ -285,6 +285,14 @@ xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/vlm_gps_nav.py \
 
 输出在 `data/urbanverse/vlm_gps_nav/<timestamp>/`：`frames/` + `vlm_io.jsonl` + `trajectory.jsonl` + `summary.json` + `nav.mp4`。
 
+用 [serve_replay.py](scripts/utils/serve_replay.py) 在浏览器里回放：
+
+```bash
+python scripts/utils/serve_replay.py --base-dir data/urbanverse/vlm_gps_nav
+# 默认 http://localhost:8501，左侧 FPV + 右侧俯视轨迹 + VLM prompt/reply
+# 快捷键：Space 播放/暂停，←/→ 逐帧，Home/End 首尾，0-9 按百分比跳转
+```
+
 ### 4.4 Isaac Sim 环境配置
 
 详见 [CLAUDE.md](CLAUDE.md) 中 Isaac Sim 相关章节。关键点：
