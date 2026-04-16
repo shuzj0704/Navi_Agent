@@ -192,6 +192,9 @@ python src/scripts/batch_eval.py \
   --max-episodes 5 \
   --steps 100 \
   --save-vis
+
+# 快速评测集 (16 eps, baseline SR≈50%)
+python src/scripts/batch_eval.py --eval-set quick_16 --steps 100
 ```
 
 ### 3.3 nav_main.py 参数
@@ -217,6 +220,7 @@ python src/scripts/batch_eval.py \
 | `--split` | `val_seen` | 数据集分割 (train/val_seen/val_unseen/test) |
 | `--max-episodes` | None | 最大 episode 数 |
 | `--episode-ids` | None | 指定 episode ID (逗号分隔) |
+| `--eval-set` | None | 评测集配置 (名称或 JSON 路径, e.g. `quick_16`) |
 | `--steps` | 100 | 每个 episode 步数上限 |
 | `--mock` | False | 不调 VLM |
 | `--save-vis` | False | 保存可视化视频 |
