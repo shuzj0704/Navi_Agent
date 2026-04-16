@@ -28,6 +28,9 @@ FRONT_MEMORY_MAX_LEN = 8
 FRONT_MEMORY_MIN_DIST = 0.5            # m
 FRONT_MEMORY_MIN_ANGLE = math.radians(20.0)
 
+# ---- 决策 + 位姿历史 ----
+DECISION_HISTORY_LEN = 20
+
 TASK_PROMPT = """
 
 你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x640 像素，原点 (0,0) 位于左上角。
@@ -69,7 +72,7 @@ DEFAULT_VLM_MODEL = "qwen3-vl"
 
 class VLMNavigator:
     def __init__(self, api_url=None, api_key=None, model=None,
-                 temperature=1.0, max_tokens=100, history_len=1,
+                 temperature=1.0, max_tokens=100, history_len=DECISION_HISTORY_LEN,
                  config=None):
         """System 1 反应式 VLM。
 
@@ -179,20 +182,27 @@ class VLMNavigator:
         if semantic_objects and pose is not None:
             sem_text = self._format_semantic_objects(semantic_objects, pose)
             if sem_text:
-                print(f"[VLM] Semantic objects:\n{sem_text}")
                 content.append({"type": "text", "text": sem_text})
 
-        # 3. 位姿上下文: 子任务起始位姿 vs 当前位姿
-        if subtask_start_pose is not None and pose is not None:
-            sx, sy, syaw = subtask_start_pose
-            cx, cy, cyaw = pose
-            delta_dist = math.hypot(cx - sx, cy - sy)
-            delta_yaw = math.degrees(wrap_angle(cyaw - syaw))
-            content.append({"type": "text", "text": (
-                f"当前子任务起始位姿: pos=({sx:.2f},{sy:.2f}) yaw={math.degrees(syaw):.0f}°\n"
-                f"当前位姿: pos=({cx:.2f},{cy:.2f}) yaw={math.degrees(cyaw):.0f}°\n"
-                f"本子任务内变化: 移动{delta_dist:.2f}m, 转向{delta_yaw:+.0f}°"
-            )})
+        # 3. 最近 N 次决策 + 对应位姿 (旧 → 新)
+        if self.history:
+            lines = [f"[最近 {len(self.history)} 次决策 (旧→新)]"]
+            for h in self.history:
+                hx, hy, hyaw = h.get("pose", (None, None, None))
+                act_txt = _format_action_text((h.get("view"), 0, 0))
+                if hx is not None:
+                    lines.append(
+                        f"- step={h.get('step','?')} "
+                        f"pos=({hx:.2f},{hy:.2f}) yaw={math.degrees(hyaw):.0f}° | {act_txt}"
+                    )
+                else:
+                    lines.append(f"- step={h.get('step','?')} | {act_txt}")
+            if pose is not None:
+                cx, cy, cyaw = pose
+                lines.append(
+                    f"[当前位姿] pos=({cx:.2f},{cy:.2f}) yaw={math.degrees(cyaw):.0f}°"
+                )
+            content.append({"type": "text", "text": "\n".join(lines)})
 
         # 4. 任务指令 (加入步数打破 KV cache 前缀)
         current_step = step if step is not None else len(self.history)
@@ -220,6 +230,10 @@ class VLMNavigator:
         print(f"[VLM raw] {raw}")
 
         parsed = self._parse_response(raw)
+
+        # 记录决策 + 位姿到历史 (排除解析失败)
+        if parsed is not None:
+            self._record_history(parsed[0], step=step, pose=pose)
 
         # 5. 若提供 pose 且本帧相对上一记忆帧满足阈值, 把当前前视+动作存进 front_memory
         if pose is not None:
@@ -298,23 +312,23 @@ class VLMNavigator:
             print("[VLM] Model decided: STOP (target reached)")
             return "stop", 0, 0
         if word in ("f", "forward", "front", "go"):
-            self._record_history("front", 0, 0)
             return "front", 0, 0
         if word in ("l", "left"):
-            self._record_history("left", 0, 0)
             return "left", 0, 0
         if word in ("r", "right"):
-            self._record_history("right", 0, 0)
             return "right", 0, 0
 
         print(f"[VLM] Parse failed: {raw}")
         return None
 
-    def _record_history(self, view, vx, vy):
-        self.history.append({
-            "step": len(self.history),
-            "view": view, "vx": vx, "vy": vy,
-        })
+    def _record_history(self, view, step=None, pose=None):
+        entry = {
+            "step": step if step is not None else len(self.history),
+            "view": view,
+        }
+        if pose is not None:
+            entry["pose"] = (float(pose[0]), float(pose[1]), float(pose[2]))
+        self.history.append(entry)
         if len(self.history) > self.history_len:
             self.history = self.history[-self.history_len:]
 
