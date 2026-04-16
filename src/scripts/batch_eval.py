@@ -208,6 +208,8 @@ def main():
                         choices=["train", "val_seen", "val_unseen", "test"])
     parser.add_argument("--max-episodes", type=int, default=None)
     parser.add_argument("--episode-ids", type=str, default=None)
+    parser.add_argument("--eval-set", type=str, default=None,
+                        help="评测集配置 JSON (路径或名称, e.g. quick_16)")
     parser.add_argument("--steps", type=int, default=100)
     parser.add_argument("--mock", action="store_true")
     parser.add_argument("--save-vis", action="store_true")
@@ -225,7 +227,22 @@ def main():
 
     vlm_cfg = load_nav_vlm_config(args.vlm_config)
 
-    episode_ids = [int(x) for x in args.episode_ids.split(",")] if args.episode_ids else None
+    # --eval-set: 从 JSON 配置加载评测集
+    if args.eval_set:
+        eval_set_path = args.eval_set
+        if not os.path.isfile(eval_set_path):
+            eval_set_path = os.path.join(os.path.dirname(__file__), "eval_sets", f"{args.eval_set}.json")
+        if not os.path.isfile(eval_set_path):
+            print(f"评测集配置不存在: {args.eval_set}")
+            return
+        with open(eval_set_path) as f:
+            eval_set_cfg = json.load(f)
+        args.split = eval_set_cfg.get("split", args.split)
+        episode_ids = eval_set_cfg["episode_ids"]
+        print(f"[评测集] {eval_set_cfg['name']}: {eval_set_cfg.get('description', '')}")
+    else:
+        episode_ids = [int(x) for x in args.episode_ids.split(",")] if args.episode_ids else None
+
     episodes = load_episodes(args.split, episode_ids, args.max_episodes)
     if not episodes:
         print("没有找到匹配的 episode!")
@@ -252,6 +269,55 @@ def main():
 
     all_metrics = []
     total_t0 = time.time()
+    total_eps = len(episodes)
+
+    # 实时写入 CSV, 防止中断丢失结果
+    csv_path = os.path.join(eval_dir, "results.csv")
+    csv_fields = ["episode_id", "instruction", "distance_to_goal",
+                  "success", "spl", "path_length", "error"]
+    csv_file = open(csv_path, "w", newline="", encoding="utf-8")
+    csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fields, extrasaction="ignore")
+    csv_writer.writeheader()
+    csv_file.flush()
+    summary_path = os.path.join(eval_dir, "summary.json")
+
+    def append_result(m):
+        all_metrics.append(m)
+        csv_writer.writerow(m)
+        csv_file.flush()
+        os.fsync(csv_file.fileno())
+        _write_summary()
+
+    def _write_summary():
+        valid = [x for x in all_metrics if "error" not in x]
+        n_succ = sum(1 for x in all_metrics if x.get("success", 0) > 0)
+        if valid:
+            sr_ = n_succ / len(valid) * 100
+            ad = float(np.mean([x["distance_to_goal"] for x in valid]))
+            asp = float(np.mean([x["spl"] for x in valid]))
+        else:
+            sr_ = ad = asp = 0.0
+        with open(summary_path, "w") as sf:
+            json.dump({"split": args.split, "n_episodes": len(all_metrics),
+                       "n_total": total_eps, "success_rate": sr_,
+                       "avg_distance_to_goal": ad, "avg_spl": asp,
+                       "total_time_s": time.time() - total_t0}, sf, indent=2)
+
+    def print_running_summary():
+        n_done = len(all_metrics)
+        valid = [m for m in all_metrics if "error" not in m]
+        n_succ = sum(1 for m in all_metrics if m.get("success", 0) > 0)
+        if valid:
+            sr = n_succ / len(valid) * 100
+            avg_d = float(np.mean([m["distance_to_goal"] for m in valid]))
+            avg_spl = float(np.mean([m["spl"] for m in valid]))
+        else:
+            sr = avg_d = avg_spl = 0.0
+        elapsed = time.time() - total_t0
+        print(f"  >> 进度 {n_done}/{total_eps} | SR={sr:.1f}% "
+              f"({n_succ}/{len(valid) if valid else 0}) | "
+              f"AvgDist={avg_d:.2f}m | AvgSPL={avg_spl:.3f} | "
+              f"Elapsed={elapsed:.1f}s")
 
     for scene_id, scene_eps in scene_groups.items():
         # 提取场景名 (scene_id 格式: "mp3d/SCENE_NAME/SCENE_NAME.glb")
@@ -297,15 +363,16 @@ def main():
                     max_steps=args.steps, save_vis=args.save_vis,
                     vis_dir=eval_dir, orchestrator_kwargs=orchestrator_kwargs,
                 )
-                all_metrics.append(metrics)
+                append_result(metrics)
             except Exception as e:
                 print(f"  [EP {ep['episode_id']}] ERROR: {e}")
-                all_metrics.append({
+                append_result({
                     "episode_id": ep["episode_id"],
                     "instruction": ep["instruction"]["instruction_text"],
                     "distance_to_goal": -1, "success": 0, "spl": 0,
                     "path_length": 0, "error": str(e),
                 })
+            print_running_summary()
 
     client.close()
 
@@ -326,21 +393,8 @@ def main():
     print(f"评测结果 ({args.split}): SR={sr:.1f}% | Avg Dist={avg_dist:.2f}m | Avg SPL={avg_spl:.3f}")
     print(f"Episodes: {n} | Time: {total_time:.1f}s")
 
-    csv_path = os.path.join(eval_dir, "results.csv")
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["episode_id", "instruction", "distance_to_goal",
-                                                "success", "spl", "path_length", "error"],
-                                extrasaction="ignore")
-        writer.writeheader()
-        for m in all_metrics:
-            writer.writerow(m)
-
-    summary_path = os.path.join(eval_dir, "summary.json")
-    with open(summary_path, "w") as f:
-        json.dump({"split": args.split, "n_episodes": n, "success_rate": sr,
-                    "avg_distance_to_goal": float(avg_dist), "avg_spl": float(avg_spl),
-                    "total_time_s": total_time}, f, indent=2)
-
+    csv_file.close()
+    _write_summary()
     print(f"结果: {csv_path}")
 
 

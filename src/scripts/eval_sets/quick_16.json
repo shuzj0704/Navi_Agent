@@ -1,0 +1,26 @@
+{
+  "name": "quick_16",
+  "description": "快速评测集: 16 episodes / 11 scenes, 基于 val_seen_20260415 评测结果筛选, baseline SR ≈ 50%",
+  "split": "val_seen",
+  "baseline_sr": 50.0,
+  "selection_criteria": "8 成功 + 8 near-miss 失败 (dist_to_goal < 4m), 覆盖 11 个场景, geodesic 5~13m",
+  "episode_ids": [3, 9, 19, 37, 93, 335, 369, 374, 467, 490, 513, 524, 593, 638, 649, 723],
+  "episodes": [
+    {"id": 3,   "scene": "s8pcmisQ38h", "geo_dist": 10.4, "baseline_success": 0, "note": "stairs + display case"},
+    {"id": 9,   "scene": "r1Q1Z4BcV1o", "geo_dist":  9.5, "baseline_success": 1, "note": "water fountain → banquet hall"},
+    {"id": 19,  "scene": "kEZ7cmS4wCh", "geo_dist": 10.0, "baseline_success": 1, "note": "past couch → up stairs"},
+    {"id": 37,  "scene": "D7N2EKCX4Sj", "geo_dist":  6.4, "baseline_success": 1, "note": "bedroom → hallway → next bedroom"},
+    {"id": 93,  "scene": "r1Q1Z4BcV1o", "geo_dist": 12.6, "baseline_success": 0, "note": "fireplace → window across dining"},
+    {"id": 335, "scene": "sT4fr6TAbpF", "geo_dist":  7.5, "baseline_success": 1, "note": "step up → past glass table → light switches"},
+    {"id": 369, "scene": "29hnd4uzFmX", "geo_dist":  5.7, "baseline_success": 1, "note": "playroom → balcony"},
+    {"id": 374, "scene": "29hnd4uzFmX", "geo_dist":  6.6, "baseline_success": 1, "note": "closet → room → toilet"},
+    {"id": 467, "scene": "sT4fr6TAbpF", "geo_dist":  9.9, "baseline_success": 0, "note": "hall → dining doorway"},
+    {"id": 490, "scene": "JeFG25nYj2p", "geo_dist":  9.2, "baseline_success": 0, "note": "bedroom → living room → double doors"},
+    {"id": 513, "scene": "D7N2EKCX4Sj", "geo_dist":  5.2, "baseline_success": 0, "note": "walk out bedroom → stop outside"},
+    {"id": 524, "scene": "PX4nDJXEHrG", "geo_dist":  7.6, "baseline_success": 0, "note": "garage → fitness → shower room"},
+    {"id": 593, "scene": "E9uDoFAP3SH", "geo_dist": 12.8, "baseline_success": 0, "note": "windows at end of room"},
+    {"id": 638, "scene": "r47D5H71a5s", "geo_dist":  8.8, "baseline_success": 0, "note": "past doorway → bathroom"},
+    {"id": 649, "scene": "sT4fr6TAbpF", "geo_dist":  7.4, "baseline_success": 1, "note": "step forward → bed → door on left"},
+    {"id": 723, "scene": "7y3sRwLe3Va", "geo_dist": 11.5, "baseline_success": 1, "note": "exit room → hallway → doorway"}
+  ]
+}
