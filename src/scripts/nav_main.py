@@ -36,7 +36,7 @@ DEFAULT_SIM_URL = "http://localhost:5100"
 
 
 def _to_jsonable(obj):
-    """ndarray/quaternion 等转成原生 Python 类型以便 json.dumps。"""
+    """ndarray → list / numpy 标量 → Python 标量, 便于 json.dumps。"""
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, (np.floating, np.integer)):
@@ -202,7 +202,7 @@ def main():
 
     start_pose_log = {
         "position": _to_jsonable(start.position),
-        "rotation": _to_jsonable(start.rotation),
+        "rotation_xyzw": _to_jsonable(start.rotation_xyzw),
         "random": bool(args.random_start),
         "seed": args.seed,
     }
