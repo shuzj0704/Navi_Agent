@@ -53,6 +53,10 @@ def main():
     parser.add_argument("--plan-map-scale", type=int, default=25)
     parser.add_argument("--vlm-config", type=str, default=None,
                         help="VLM 配置 YAML 路径 (e.g. src/vlm_server/configs/nav_vlm.yaml)")
+    parser.add_argument("--random-start", action="store_true",
+                        help="场景加载后随机选取 navmesh 上一个可行点 + 随机 yaw 作为起点 (用于测试)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="随机起点的 seed, 设置后结果可复现 (仅在 --random-start 下生效)")
     args = parser.parse_args()
 
     vlm_cfg = load_nav_vlm_config(args.vlm_config)
@@ -73,6 +77,11 @@ def main():
 
     print(f"[Sim] 加载场景: {scene_name}")
     client.load_scene(scene_name=scene_name)
+
+    if args.random_start:
+        start = client.random_agent_state(seed=args.seed)
+        seed_str = f" (seed={args.seed})" if args.seed is not None else ""
+        print(f"[Sim] 随机起点{seed_str}: pos={start.position}")
 
     # 初始化组件
     dwa = DWAPlanner()
