@@ -39,6 +39,9 @@ src/sim_vln_outdoor/assets/rl_sar_zoo/
 # Navigation output (visualizations, eval results)
 output/
 
+# Third-party source-installed packages (SAM3 etc.)
+third_party/
+
 # Logs
 *.log
 output.log

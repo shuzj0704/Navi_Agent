@@ -33,7 +33,7 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 
 ```
 naviagent (任意 Python 环境, 无 habitat 依赖)
-  ├── perception: 观测读取 (ObsBundle, SimClientObsReader) + 点云 + YOLOE 分割 + 语义地图
+  ├── perception: 观测读取 (ObsBundle, SimClientObsReader) + 点云 + YOLOE/SAM3 分割 + 语义地图
   ├── decision:   NavigationEngine + DWA + 转向控制 + TaskOrchestrator
   ├── vlm:        VLMNavigator (System1) + System2Planner
   └── common:     坐标变换 + NavState + 视角常量 + 可视化
@@ -76,12 +76,34 @@ curl http://localhost:5100/scenes
 
 | 环境名 | Python | 用途 | 激活方式 |
 |--------|--------|------|---------|
+| `naviagent` | 3.12 | 运行 naviagent client 端所有代码（perception/decision/vlm）+ SAM3 + YOLOE；**不含仿真** | `conda activate naviagent` |
 | `habitat` | 3.9 | 室内仿真服务器（Habitat-Sim 0.3.3 + FastAPI + uvicorn） | `conda activate habitat` |
 | `metaurban` | 3.10 | 室外仿真渲染（MetaUrban 0.0.1 + SB3 + PyTorch） | `conda activate metaurban` |
 
-两个环境不可混装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D）。
+仿真环境不可互装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D），也不要和 `naviagent` 混装。
 
-naviagent 运行在**任意 Python 环境**，依赖：`numpy, opencv-python, httpx, openai, ultralytics`。
+`naviagent` env 关键依赖：
+- torch 2.9.0+cu128 / torchvision 0.24+cu128（RTX 5060 Ti Blackwell 必须 cu128）
+- `sam3`（源码安装自 `third_party/sam3/`，官方仓库 facebookresearch/sam3）
+- `ultralytics`（YOLOE 备用）
+- numpy<2 / opencv-python<4.11（与 SAM3 的 numpy<2 约束兼容）
+- setuptools<81（SAM3 用 `pkg_resources`，Py3.12 + setuptools 81 会移除）
+- openai, httpx, scipy, pyyaml, matplotlib, pillow, timm, einops, pycocotools
+
+搭建步骤（新机器）：
+```bash
+conda create -n naviagent python=3.12 -y
+conda activate naviagent
+pip install torch==2.9.0 torchvision \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple   # pypi.nvidia.com 被墙时必备
+git clone https://github.com/facebookresearch/sam3.git third_party/sam3
+pip install -e third_party/sam3 --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip install "opencv-python<4.11" "numpy<2" "setuptools<81" \
+    openai scipy ultralytics matplotlib einops pycocotools \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+huggingface-cli login   # 需在 HF facebook/sam3 页面同意许可后才能下载权重
+```
 
 ## 模型权重 (git-lfs)
 
@@ -92,7 +114,24 @@ git lfs install
 git lfs pull
 ```
 
-当前模型：`models/yoloe-11l-seg.pt` (68MB, YOLOE 开放词汇分割)
+当前模型：
+- `models/yoloe-11l-seg.pt` (68MB, YOLOE 开放词汇分割)
+- SAM3 checkpoint — 非 lfs，首次调用 `Sam3Segmentor` 时自动从 HF `facebook/sam3` 下载到 `~/.cache/huggingface/`。需先 `huggingface-cli login` 并在网页同意许可。
+
+## 语义分割器选择
+
+`src/naviagent/perception/` 下两个分割器共用 `Segment` 接口，可互换：
+
+| 分割器 | 优势 | 代价 |
+|--------|------|------|
+| `YOLOESegmentor` | 小模型快（68MB，CPU 可跑），在 habitat env 也能用 | 需要预先 `set_classes`，开放词汇泛化弱于 SAM3 |
+| `Sam3Segmentor` (base) | 概念级 open-vocab 零样本分割，mask 质量高 | 848M 参数、必须 cu128 + `naviagent` env，图片级单轮只接受一个 text prompt（内部循环 classes） |
+
+用法示例（图片模式）：
+```bash
+conda activate naviagent
+python src/scripts/test_sam3.py --image path/to/img.jpg --classes "chair,table,sofa"
+```
 
 ## 机器与远程访问
 

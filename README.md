@@ -19,6 +19,7 @@ Navi_Agent/
 │   │   │   ├── pixel_to_3d.py            # 深度图 → 3D 点云 + 相机内参
 │   │   │   ├── obs_reader.py             # ObsBundle + HabitatObsReader + SimClientObsReader
 │   │   │   ├── yoloe_segmentor.py        # YOLOE 开放词汇分割
+│   │   │   ├── sam3_segmentor.py         # SAM3 图片级开放词汇分割 (base)
 │   │   │   └── semantic_mapper.py        # 语义地图 (俯视图渲染)
 │   │   ├── decision/                     # 决策层
 │   │   │   ├── nav_engine.py             # NavigationEngine 导航主循环引擎
@@ -106,18 +107,31 @@ sim_vln_outdoor (Isaac Sim 自带 Python)
 
 | 环境名 | Python | 用途 | 关键依赖 |
 |--------|--------|------|----------|
+| `naviagent` | 3.12 | naviagent client 端全部代码 + SAM3/YOLOE 分割（不含仿真） | torch 2.9+cu128, sam3 (源码), ultralytics, opencv<4.11, numpy<2, setuptools<81, openai, httpx, scipy, matplotlib, einops, pycocotools |
 | `habitat` | 3.9 | 室内仿真服务器 (Habitat-Sim 0.3.3) | habitat-sim, fastapi, uvicorn, numpy, opencv |
 | `metaurban` | 3.10 | 室外仿真 (MetaUrban, 非主线) | metaurban, stable-baselines3, pytorch |
 
-> `habitat` 和 `metaurban` 渲染引擎冲突（EGL vs Panda3D），不可混装。
+> 三个环境不可混装（渲染引擎冲突：habitat 用 EGL，metaurban 用 Panda3D；naviagent 用 cu128 torch 独占）。
 
 ### 2.2 导航 Agent 依赖
 
-naviagent 运行在**任意 Python 环境**（不需要 habitat），需要：
+naviagent client 统一走 `naviagent` env（Python 3.12 + torch cu128）。搭建：
 
+```bash
+conda create -n naviagent python=3.12 -y
+conda activate naviagent
+pip install torch==2.9.0 torchvision \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+git clone https://github.com/facebookresearch/sam3.git third_party/sam3
+pip install -e third_party/sam3 --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip install "opencv-python<4.11" "numpy<2" "setuptools<81" \
+    openai scipy ultralytics matplotlib einops pycocotools \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+huggingface-cli login   # 先在 HF facebook/sam3 页面同意许可
 ```
-numpy, opencv-python, httpx, openai, ultralytics
-```
+
+> 国内 `pypi.nvidia.com` 常被墙，必须挂清华镜像 `--extra-index-url` 才能拉 `nvidia-*-cu12` 包。
 
 ### 2.3 模型权重 (git-lfs)
 
@@ -145,8 +159,7 @@ FileNotFoundError: YOLOE 模型文件不存在: Navi_Agent/models/yoloe-11l-seg.
 
 ```bash
 conda activate habitat
-cd src
-python -m sim_vln_indoor.env.server
+python -m src.sim_vln_indoor.env.server
 # 默认监听 0.0.0.0:5100, 可选: --port 5200 --config <path>
 ```
 
