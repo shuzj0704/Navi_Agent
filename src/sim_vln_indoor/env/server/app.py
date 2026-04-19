@@ -65,6 +65,25 @@ def create_app(config_path: str = "config/sim_server.yaml") -> FastAPI:
             "scene_name": info["scene_name"] if info else None,
         }
 
+    # ========== 传感器配置 ==========
+
+    @app.get("/sensors")
+    async def get_sensors():
+        """返回服务器加载的传感器配置, 供 client 计算内参 / 构造 ObsReader。"""
+        return {
+            name: {
+                "type": scfg.type,
+                "position": list(scfg.position),
+                "pitch": scfg.pitch,
+                "yaw": scfg.yaw,
+                "roll": scfg.roll,
+                "hfov": scfg.hfov,
+                "width": scfg.width,
+                "height": scfg.height,
+            }
+            for name, scfg in config.sensors.items()
+        }
+
     # ========== 场景管理 ==========
 
     @app.get("/scenes")

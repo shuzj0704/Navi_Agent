@@ -232,6 +232,8 @@ class NavigationEngine:
         prediction, snap = self._staged_prediction
         self._staged_prediction = None
         vv, vvx, vvy = prediction
+        if self.orchestrator is not None:
+            self.orchestrator.notify_action((vv, vvx, vvy))
 
         # STOP
         if vv == "stop":
@@ -245,8 +247,8 @@ class NavigationEngine:
             result.vlm_view = vv
             return True
 
-        # 转向 / 前进决策
-        action_type, tvx, tvy = self.turn_ctrl.decide(vv, vvx, vvy)
+        # 转向 / 前进决策 (无像素目标, 直接动作)
+        action_type, _, _ = self.turn_ctrl.decide(vv, 0, 0)
 
         if action_type in ("turn_left", "turn_right"):
             print(f"[VLM1] {vv} → {action_type}")
@@ -260,38 +262,10 @@ class NavigationEngine:
             result.vlm_view = vv
             return True
 
-        # forward: 用 snapshot 里的 front_depth / 位姿反投影得到全局目标
-        cam_goal = pixel_to_camera_3d(
-            tvx, tvy, snap["front_depth"],
-            self.front_fx, self.front_fy, self.front_cx, self.front_cy,
-        )
-        if cam_goal is None:
-            print("[VLM1] cam_goal 无效 (深度空洞), 兜底 move_forward")
-            self._fallback_forward(obs, result, vv, tvx, tvy)
-            return True
-
-        gx, gy = camera_point_to_nav2d(
-            cam_goal, snap["nav_x"], snap["nav_y"], snap["nav_yaw"],
-        )
-        init_dist = math.hypot(gx - self.nav.x, gy - self.nav.y)
-        if init_dist < self.config.goal_reached_threshold:
-            print(f"[VLM1] 目标太近 ({init_dist:.2f}m < "
-                  f"{self.config.goal_reached_threshold}m), 兜底 move_forward")
-            self._fallback_forward(obs, result, vv, tvx, tvy)
-            return True
-
-        # 设置新的全局目标
-        self._goal_nav = (gx, gy)
-        self._goal_meta = {
-            "cam_goal": cam_goal,
-            "vlm_view": vv,
-            "target_vx": tvx,
-            "target_vy": tvy,
-        }
-        self.nav.goal_x, self.nav.goal_y = gx, gy
-        self.nav.goal_valid = True
-        print(f"[VLM1] 新目标 (全局 nav): ({gx:.2f}, {gy:.2f}), dist={init_dist:.2f}m")
-        return False  # 目标已设, 交给 DWA 步骤处理
+        # forward: 直接前进一步, 不再做像素反投影 / DWA 目标
+        print(f"[VLM1] {vv} → move_forward")
+        self._fallback_forward(obs, result, vv, 0, 0)
+        return True
 
     def _dwa_step(self, obs, step_num, result):
         """DWA 追踪当前目标走一步"""
@@ -378,10 +352,7 @@ class NavigationEngine:
         """提交一次新的后台 VLM 调用"""
         sem_for_vlm = None
         if self.mapper is not None:
-            sem_for_vlm = self.mapper.render_topdown(
-                agent_x=self.nav.x, agent_y=self.nav.y, agent_yaw=self.nav.yaw,
-                map_size=480, scale=40, trajectory=self.trajectory,
-            )
+            sem_for_vlm = list(self.mapper.objects)
         self._pending_snapshot = {
             "views": {k: v.copy() for k, v in obs.views_bgr.items()},
             "front_depth": obs.front_depth.copy(),
@@ -395,7 +366,7 @@ class NavigationEngine:
                 self._pending_snapshot["nav_y"],
                 self._pending_snapshot["nav_yaw"],
             ),
-            semantic_map=sem_for_vlm,
+            semantic_objects=sem_for_vlm,
             subtask_start_pose=(
                 self.orchestrator.subtask_start_pose
                 if self.orchestrator is not None else None

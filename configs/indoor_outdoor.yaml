@@ -1,0 +1,51 @@
+# 室内外合并导航配置文件
+# ======================
+# 用法:
+#   conda activate internav_habitat
+#   # 终端 1: 启动仿真服务器
+#   xvfb-run -a python -m sim_vln_indoor.env.server --port 5100
+#   # 终端 2: 启动室内外合并导航
+#   python src/scripts/indoor_outdoor_nav.py --config configs/indoor_outdoor.yaml
+
+# 室内导航配置
+indoor:
+  scene: "17DRP5sb8fy"
+  max_steps: 200
+  door_distance_threshold: 2.0  # 门距离阈值 (m)
+  instruction: "探索这个环境并找到通往室外的可能的出口，停在该出口前。"
+  gpu: 0  # 室内用 GPU 0
+  force_outdoor: true  # 室内失败时也执行室外
+
+# 室外导航配置
+outdoor:
+  # USD 场景路径
+  usd_path: "/mnt/sda/szj/urban_verse/CraftBench/scene_09_cbd_t_intersection_construction_sites/Collected_export_version/export_version.usd"
+  # 稠密轨迹文件
+  trajectory: "data/urbanverse/trajectory/scene_09/dense_trajectory.json"
+  max_steps: 200
+  goal_tolerance: 2.0  # 到达目标容差 (m)
+  controller_freq: 1.0  # 控制频率 (Hz)
+  instruction: "继续沿导航路线前往目的地。"
+
+# 坐标系转换配置
+# 室内门位置 → 室外起点 的偏移 (x, y, z)
+coordinate_transform:
+  offset_x: -730.0
+  offset_y: 490.0
+  offset_z: 0.0
+  yaw_offset: 0.0  # 额外偏航角偏移 (度)
+
+# VLM 配置
+vlm:
+  api_url: "http://localhost:8004/v1"
+  api_key: "none"
+  model: "qwen3-vl"
+  temperature: 1.0
+  max_tokens: 100
+  mock: true
+
+# 输出配置
+output:
+  dir: "output/indoor_outdoor"
+  save_video: true
+  gpu: 3  # 室外用 GPU 3

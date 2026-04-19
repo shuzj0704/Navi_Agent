@@ -1,23 +1,23 @@
 server:
   host: "0.0.0.0"
   port: 5100
-  gpu_device_id: 0
+  gpu_device_id: -1
 
 scenes:
-  base_dir: "data/scene_data/mp3d"
+  base_dir: "/home/ps/workspace/ll/workspace/Navi_Agent/data/mp3d_ce"
   default_scene: null
 
 physics:
   enable: false
 
 camera_defaults:
-  position: [0.0, 0.5, 0.0]
-  pitch: 0.0
+  position: [0.0, 1.0, 0.0]
+  pitch: -20.0
   yaw: 0.0
   roll: 0.0
-  hfov: 120
+  hfov: 90
   width: 640
-  height: 480
+  height: 640
 
 sensors:
   front_rgb:

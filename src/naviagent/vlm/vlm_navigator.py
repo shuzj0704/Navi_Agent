@@ -4,7 +4,7 @@ VLM Navigation Module
 Send 4-view images + task instruction to Qwen3.0-VL, parse output (view, vx, vy).
 
 Usage:
-    vlm = VLMNavigator(api_url="http://10.100.0.1:8000/v1")
+    vlm = VLMNavigator(api_url="http://localhost:8004/v1")
     result = vlm.predict(images_dict, "Go to the sofa in the living room")
     # result = ("front", 320, 200) or None
 """
@@ -24,35 +24,55 @@ from ..common.view_constants import VIEW_ORDER, VIEW_ABBR, ABBR_TO_VIEW, VIEW_LA
 
 
 # ---- 前视历史记忆阈值 ----
-FRONT_MEMORY_MAX_LEN = 4
+FRONT_MEMORY_MAX_LEN = 8
 FRONT_MEMORY_MIN_DIST = 0.5            # m
-FRONT_MEMORY_MIN_ANGLE = math.radians(30.0)
+FRONT_MEMORY_MIN_ANGLE = math.radians(20.0)
+
+# ---- 决策 + 位姿历史 ----
+DECISION_HISTORY_LEN = 20
 
 TASK_PROMPT = """
 
-你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x480 像素，原点 (0,0) 位于左上角。
+你是一名专业的导航向导。上方三张图像分别由机器人的前(f)、左(l)、右(r)三个相机拍摄，每张图像分辨率为 640x640 像素，原点 (0,0) 位于左上角。
 
 你的导航任务是: {instruction}
 
-请选择前进方向，并在该方向视图中可通行区域(地面/门口/走廊)上挑选一个目标像素。
+请输出以下三种动作之一(且仅一种):
+  - F     : 沿当前朝向直行一步 (前视图中的可通行区域足够前进时)
+  - L     : 原地左转 (左侧视图更可能通往目标, 或前方受阻需要换方向)
+  - R     : 原地右转 (右侧视图更可能通往目标, 或前方受阻需要换方向)
 
-严格按以下格式输出: v,vx,vy
+如果你认为已经完成当前任务要求(例如已抵达目标物前 1-2 米), 请输出: STOP
 
-其中 v 是 f/l/r 之一，vx (0-639) 为水平像素坐标，vy (0-479) 为垂直像素坐标。
-
-如果你认为已经完成当前任务要求，请输出: v,0,0
-
-除此之外不要输出任何其他内容。"""
+严格按上述格式输出, 仅输出 F / L / R / STOP 中的一个, 不要任何其他内容、解释、引号或标点。"""
 
 
-DEFAULT_VLM_API_URL = "http://10.100.0.1:8000/v1"
+def _format_action_text(act):
+    """把 (view, vx, vy) 动作元组渲染成新格式 'L' / 'R' / 'x,y' / 'STOP'。"""
+    if act is None:
+        return "action=N/A"
+    if not isinstance(act, tuple) or len(act) < 1:
+        return f"action={act}"
+    v = act[0]
+    if v == "stop":
+        return "action=STOP"
+    if v == "left":
+        return "action=L"
+    if v == "right":
+        return "action=R"
+    if v == "front":
+        return "action=F"
+    return f"action={act}"
+
+
+DEFAULT_VLM_API_URL = "http://localhost:8004/v1"
 DEFAULT_VLM_API_KEY = "none"
 DEFAULT_VLM_MODEL = "qwen3-vl"
 
 
 class VLMNavigator:
     def __init__(self, api_url=None, api_key=None, model=None,
-                 temperature=1.0, max_tokens=100, history_len=1,
+                 temperature=1.0, max_tokens=100, history_len=DECISION_HISTORY_LEN,
                  config=None):
         """System 1 反应式 VLM。
 
@@ -100,13 +120,14 @@ class VLMNavigator:
         return {"history": list(self.history)}
 
     def predict(self, images_dict, instruction, step=None, pose=None,
-                semantic_map=None, subtask_start_pose=None):
+                semantic_objects=None, subtask_start_pose=None):
         """
         Args:
             images_dict: {"front": (H,W,3), "left": ..., "right": ...} BGR uint8
             instruction: navigation task instruction
             pose: 可选 (nav_x, nav_y, nav_yaw) — 用于前视历史记忆的增量判定
-            semantic_map: 可选 BGR 俯视语义地图 (和慢系统共用同一张)
+            semantic_objects: 可选 list[Object3D] 全局物体列表; 将按当前 pose
+                转换为机器人坐标系下的结构化文字传入 (物体类型 + 位置)
             subtask_start_pose: 可选 (x, y, yaw) 当前子任务下发时的起始位姿
         Returns:
             (view, vx, vy) or None (parse failed)
@@ -118,17 +139,23 @@ class VLMNavigator:
             content.append({
                 "type": "text",
                 "text": (
+                    "这是你当前的任务执行进度,请自行判断执行到哪一步任务了。"
                     f"以下是过去 {len(self.front_memory)} 个位置的前视图"
-                    f"(按时间从早到晚排列), 仅供空间记忆参考; 决策请以下面的"
-                    f"当前四视角为准。"
+                    "(按时间从早到晚排列, 每帧附带当时的模型输出与位姿), "
+                    "仅供空间记忆与进度参考; 决策请以下面的当前四视角为准。"
                 ),
             })
             for i, entry in enumerate(self.front_memory):
                 t_back = len(self.front_memory) - i
-                content.append({
-                    "type": "text",
-                    "text": f"[历史前视 t-{t_back}] step={entry.get('step','?')}",
-                })
+                act = entry.get("action")
+                act_txt = _format_action_text(act)
+                ex, ey, eyaw = entry["x"], entry["y"], entry["yaw"]
+                meta = (
+                    f"[历史前视 t-{t_back}] step={entry.get('step','?')} | "
+                    f"pose=({ex:.2f},{ey:.2f}) yaw={math.degrees(eyaw):.0f}° | "
+                    f"{act_txt}"
+                )
+                content.append({"type": "text", "text": meta})
                 _, buf = cv2.imencode(
                     ".jpg", entry["bgr"], [cv2.IMWRITE_JPEG_QUALITY, 85]
                 )
@@ -142,8 +169,8 @@ class VLMNavigator:
         for vname in VIEW_ORDER:
             content.append({"type": "text", "text": VIEW_LABELS[vname]})
             img = images_dict[vname]
-            if img.shape[0] != 480 or img.shape[1] != 640:
-                img = cv2.resize(img, (640, 480))
+            if img.shape[0] != 640 or img.shape[1] != 640:
+                img = cv2.resize(img, (640, 640))
             _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
             b64 = base64.b64encode(buf).decode()
             content.append({
@@ -151,33 +178,31 @@ class VLMNavigator:
                 "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
             })
 
-        # 2. 语义地图 (俯视, 可选)
-        if semantic_map is not None and semantic_map.size > 0:
-            ok, buf = cv2.imencode(".jpg", semantic_map,
-                                   [cv2.IMWRITE_JPEG_QUALITY, 85])
-            if ok:
-                b64 = base64.b64encode(buf).decode()
-                content.append({
-                    "type": "text",
-                    "text": ("[语义地图，俯视视角] 绿点=机器人, 浅绿线=轨迹, "
-                             "彩色框=检出物体; 用于参考全局布局和探索进度。"),
-                })
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                })
+        # 2. 语义物体列表 (以机器人坐标系位置的结构化文字传入)
+        if semantic_objects and pose is not None:
+            sem_text = self._format_semantic_objects(semantic_objects, pose)
+            if sem_text:
+                content.append({"type": "text", "text": sem_text})
 
-        # 3. 位姿上下文: 子任务起始位姿 vs 当前位姿
-        if subtask_start_pose is not None and pose is not None:
-            sx, sy, syaw = subtask_start_pose
-            cx, cy, cyaw = pose
-            delta_dist = math.hypot(cx - sx, cy - sy)
-            delta_yaw = math.degrees(wrap_angle(cyaw - syaw))
-            content.append({"type": "text", "text": (
-                f"当前子任务起始位姿: pos=({sx:.2f},{sy:.2f}) yaw={math.degrees(syaw):.0f}°\n"
-                f"当前位姿: pos=({cx:.2f},{cy:.2f}) yaw={math.degrees(cyaw):.0f}°\n"
-                f"本子任务内变化: 移动{delta_dist:.2f}m, 转向{delta_yaw:+.0f}°"
-            )})
+        # 3. 最近 N 次决策 + 对应位姿 (旧 → 新)
+        if self.history:
+            lines = [f"[最近 {len(self.history)} 次决策 (旧→新)]"]
+            for h in self.history:
+                hx, hy, hyaw = h.get("pose", (None, None, None))
+                act_txt = _format_action_text((h.get("view"), 0, 0))
+                if hx is not None:
+                    lines.append(
+                        f"- step={h.get('step','?')} "
+                        f"pos=({hx:.2f},{hy:.2f}) yaw={math.degrees(hyaw):.0f}° | {act_txt}"
+                    )
+                else:
+                    lines.append(f"- step={h.get('step','?')} | {act_txt}")
+            if pose is not None:
+                cx, cy, cyaw = pose
+                lines.append(
+                    f"[当前位姿] pos=({cx:.2f},{cy:.2f}) yaw={math.degrees(cyaw):.0f}°"
+                )
+            content.append({"type": "text", "text": "\n".join(lines)})
 
         # 4. 任务指令 (加入步数打破 KV cache 前缀)
         current_step = step if step is not None else len(self.history)
@@ -204,13 +229,46 @@ class VLMNavigator:
 
         print(f"[VLM raw] {raw}")
 
-        # 5. 若提供 pose 且本帧相对上一记忆帧满足阈值, 把当前前视存进 front_memory
+        parsed = self._parse_response(raw)
+
+        # 记录决策 + 位姿到历史 (排除解析失败)
+        if parsed is not None:
+            self._record_history(parsed[0], step=step, pose=pose)
+
+        # 5. 若提供 pose 且本帧相对上一记忆帧满足阈值, 把当前前视+动作存进 front_memory
         if pose is not None:
-            self._maybe_push_front_memory(images_dict["front"], pose, step)
+            self._maybe_push_front_memory(images_dict["front"], pose, step, parsed)
 
-        return self._parse_response(raw)
+        return parsed
 
-    def _maybe_push_front_memory(self, front_bgr, pose, step):
+    @staticmethod
+    def _format_semantic_objects(objects, pose):
+        """把全局物体列表转成机器人坐标系下的结构化文字。
+
+        机器人坐标系: x=前, y=左 (单位 m)。
+        """
+        rx, ry, ryaw = pose
+        cy, sy = math.cos(ryaw), math.sin(ryaw)
+        lines = []
+        for obj in objects:
+            try:
+                gx, gy = float(obj.center[0]), float(obj.center[1])
+                label = obj.label
+            except (AttributeError, IndexError, TypeError):
+                continue
+            dx, dy = gx - rx, gy - ry
+            fwd = cy * dx + sy * dy
+            left = -sy * dx + cy * dy
+            lines.append(f"- {label}: (前={fwd:+.2f}m, 左={left:+.2f}m)")
+        if not lines:
+            return ""
+        header = (
+            f"[语义物体 — 机器人坐标系, x=前 y=左, 共 {len(lines)} 个] "
+            "用于参考全局布局和已探索物体位置:"
+        )
+        return header + "\n" + "\n".join(lines)
+
+    def _maybe_push_front_memory(self, front_bgr, pose, step, action=None):
         x, y, yaw = pose
         if self.front_memory:
             last = self.front_memory[-1]
@@ -222,58 +280,57 @@ class VLMNavigator:
                 return  # 太近也没转, 跳过
 
         img = front_bgr
-        if img.shape[0] != 480 or img.shape[1] != 640:
-            img = cv2.resize(img, (640, 480))
+        if img.shape[0] != 640 or img.shape[1] != 640:
+            img = cv2.resize(img, (640, 640))
         self.front_memory.append({
             "bgr": img.copy(),
             "x": float(x), "y": float(y), "yaw": float(yaw),
             "step": step,
+            "action": action,
         })
         if len(self.front_memory) > FRONT_MEMORY_MAX_LEN:
             self.front_memory = self.front_memory[-FRONT_MEMORY_MAX_LEN:]
 
     def _parse_response(self, raw):
-        """Parse VLM output 'v,vx,vy' to (view, vx, vy), or 'stop' to ("stop", 0, 0)"""
+        """解析 F / L / R / STOP, 返回 (action, 0, 0) 兼容下游元组结构:
+            'F'    → ('front', 0, 0)
+            'L'    → ('left',  0, 0)
+            'R'    → ('right', 0, 0)
+            'STOP' → ('stop',  0, 0)
+        """
         import re
 
-        token = raw.strip().lower()
-        if token == "stop":
-            print("[VLM] Model decided: STOP (target reached)")
-            return "stop", 0, 0
-
-        m = re.search(r'([flrb])\s*,\s*(\d+)\s*,\s*(\d+)', raw)
+        token = raw.strip().strip("`'\"")
+        # 取首个字母字符
+        m = re.search(r'[a-zA-Z]+', token)
         if not m:
             print(f"[VLM] Parse failed: {raw}")
             return None
+        word = m.group(0).lower()
 
-        abbr = m.group(1)
-        view = ABBR_TO_VIEW[abbr]
-
-        try:
-            vx = int(m.group(2))
-            vy = int(m.group(3))
-        except (ValueError, TypeError):
-            print(f"[VLM] Invalid coordinates: {raw}")
-            return None
-
-        # v,0,0 表示到达目标
-        if vx == 0 and vy == 0:
-            print(f"[VLM] Model decided: STOP ({abbr},0,0)")
+        if word in ("stop", "done", "finish", "finished", "s"):
+            print("[VLM] Model decided: STOP (target reached)")
             return "stop", 0, 0
+        if word in ("f", "forward", "front", "go"):
+            return "front", 0, 0
+        if word in ("l", "left"):
+            return "left", 0, 0
+        if word in ("r", "right"):
+            return "right", 0, 0
 
-        # clamp to valid range
-        vx = max(0, min(vx, 639))
-        vy = max(0, min(vy, 479))
+        print(f"[VLM] Parse failed: {raw}")
+        return None
 
-        # record history
-        self.history.append({
-            "step": len(self.history),
-            "view": view, "vx": vx, "vy": vy,
-        })
+    def _record_history(self, view, step=None, pose=None):
+        entry = {
+            "step": step if step is not None else len(self.history),
+            "view": view,
+        }
+        if pose is not None:
+            entry["pose"] = (float(pose[0]), float(pose[1]), float(pose[2]))
+        self.history.append(entry)
         if len(self.history) > self.history_len:
             self.history = self.history[-self.history_len:]
-
-        return view, vx, vy
 
     # ------------------------------------------------------------------
     #  诊断模式
@@ -320,8 +377,8 @@ right: ...
         for vname in VIEW_ORDER:
             content.append({"type": "text", "text": VIEW_LABELS[vname]})
             img = images_dict[vname]
-            if img.shape[0] != 480 or img.shape[1] != 640:
-                img = cv2.resize(img, (640, 480))
+            if img.shape[0] != 640 or img.shape[1] != 640:
+                img = cv2.resize(img, (640, 640))
             _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
             b64 = base64.b64encode(buf).decode()
             content.append({
@@ -390,21 +447,21 @@ class VLMAsyncWorker:
         )
 
     def submit(self, views_bgr, instruction, step, pose=None,
-               semantic_map=None, subtask_start_pose=None):
+               semantic_objects=None, subtask_start_pose=None):
         snapshot = {k: v.copy() for k, v in views_bgr.items()}
-        sem_copy = semantic_map.copy() if semantic_map is not None else None
+        sem_copy = list(semantic_objects) if semantic_objects else None
         return self._exec.submit(
             self._call, snapshot, instruction, step, pose, sem_copy,
             subtask_start_pose,
         )
 
-    def _call(self, views_bgr, instruction, step, pose, semantic_map,
+    def _call(self, views_bgr, instruction, step, pose, semantic_objects,
               subtask_start_pose):
         if self.vlm is None:
             return ("front", 320, 240)
         return self.vlm.predict(
             views_bgr, instruction, step=step, pose=pose,
-            semantic_map=semantic_map,
+            semantic_objects=semantic_objects,
             subtask_start_pose=subtask_start_pose,
         )
 

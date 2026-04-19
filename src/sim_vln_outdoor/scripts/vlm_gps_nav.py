@@ -47,11 +47,9 @@ sys.path.insert(0, _PACKAGE_ROOT)
 sys.path.insert(0, _SCRIPT_DIR)                          # so we can import nav_eval
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(_PACKAGE_ROOT))  # Navi_Agent/
+sys.path.insert(0, os.path.join(_PROJECT_ROOT, "src"))  # for vlm_server
 
-_CRAFTBENCH_ROOT = os.environ.get(
-    "CRAFTBENCH_ROOT",
-    os.path.expanduser("~/navigation/urban_verse/CraftBench"),
-)
+_CRAFTBENCH_ROOT = "data/urbanverse/CraftBench"
 DEFAULT_USD = os.path.join(
     _CRAFTBENCH_ROOT,
     "scene_09_cbd_t_intersection_construction_sites",
@@ -120,6 +118,11 @@ def parse_args():
              "By default it is derived from the first edge of the route, "
              "so the agent starts already facing forward along the path.",
     )
+    parser.add_argument(
+        "--start-pos", type=float, nargs=3, default=None,
+        help="Override the initial camera position [x, y, z] in meters. "
+             "By default it is taken from the first waypoint of the trajectory.",
+    )
     return parser.parse_args()
 
 
@@ -129,7 +132,7 @@ def main():
     # 1. Load trajectory to get the start pose (must happen before SimulationApp).
     with open(args.trajectory, "r") as f:
         traj = json.load(f)
-    start_pos = list(traj["waypoints"][0]["pos"])
+    start_pos = list(args.start_pos) if args.start_pos else list(traj["waypoints"][0]["pos"])
     goal_pos = list(traj["waypoints"][-1]["pos"])
 
     # The route file is position-only (like a real nav-app polyline). The
@@ -290,6 +293,8 @@ def main():
         "route_length_m": float(traj["total_length_m"]),
         "goal_tol_m": args.goal_tol,
         "controller_freq_hz": args.controller_freq,
+        "start_pos": start_pos,
+        "start_yaw": start_yaw,
         "instruction": args.instruction,
         "trajectory_path": args.trajectory,
         "usd_path": args.usd_path,
@@ -308,6 +313,7 @@ def main():
     if frames:
         video_path = output_dir / "nav.mp4"
         input_pattern = str(output_dir / "frames" / "frame_%06d.png")
+        cwd = os.getcwd()
         cmd = [
             "ffmpeg", "-y",
             "-framerate", "30",
@@ -317,6 +323,7 @@ def main():
             str(video_path),
         ]
         print(f"[Info] stitching {len(frames)} frames -> {video_path}")
+        print(f"[Debug] cwd={cwd}, output_dir={output_dir}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"[Done] video -> {video_path}")

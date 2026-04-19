@@ -47,7 +47,7 @@ INITIAL_DECOMPOSITION_HINT = (
 class TaskOrchestrator:
     def __init__(self,
                  full_instruction: str,
-                 api_url: str = "http://10.100.0.1:8000/v1",
+                 api_url: str = "http://localhost:8004/v1",
                  model: str = "qwen3-vl",
                  heartbeat_steps: int = 15,
                  map_size: int = 640,
@@ -105,6 +105,9 @@ class TaskOrchestrator:
         self._stop_override_step: int = -10**9
         self._last_reason: str = ""
 
+        # System 1 最近一次输出的动作 (view, vx, vy)，用于喂给 planner 历史
+        self._last_action: Optional[tuple] = None
+
     # ------------------------------------------------------------------
     #  对外属性
     # ------------------------------------------------------------------
@@ -121,6 +124,10 @@ class TaskOrchestrator:
         if self._stop_override_text:
             return f"{self.current_subtask} {self._stop_override_text}"
         return self.current_subtask
+
+    def notify_action(self, action: Optional[tuple]):
+        """由 NavEngine 在 System 1 产出新动作后调用, 供 planner 历史记录使用。"""
+        self._last_action = action
 
     # ------------------------------------------------------------------
     #  主循环入口
@@ -261,6 +268,8 @@ class TaskOrchestrator:
             views_bgr=views_bgr,
             hint=effective_hint,
             pose=(nav.x, nav.y, nav.yaw),
+            step=step,
+            last_action=self._last_action,
         )
         self._last_plan_step = step
         self._plan_count += 1

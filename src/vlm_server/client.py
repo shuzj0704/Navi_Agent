@@ -7,6 +7,7 @@ inference evaluation, interactive testing) can share one client API.
 from __future__ import annotations
 
 import base64
+import os
 from pathlib import Path
 from typing import Any, Iterator, List, Optional
 
@@ -15,10 +16,7 @@ class VLMClient:
     """Wraps an OpenAI-compatible chat client pointed at a vLLM server."""
 
     def __init__(self, base_url: str, model: str, api_key: str = "none"):
-        # Local import keeps this module importable without `openai` installed
-        # in environments that only need `server.py`.
         from openai import OpenAI
-
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model = model
 

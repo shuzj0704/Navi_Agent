@@ -61,6 +61,7 @@ python -m sim_vln_indoor.env.server
 python src/scripts/nav_main.py --sim-url http://localhost:5100 --scene 17DRP5sb8fy --steps 100
 python src/scripts/nav_main.py --mock --scene 17DRP5sb8fy   # 不调 VLM
 python src/scripts/batch_eval.py --split val_seen --max-episodes 5 --steps 100
+python src/scripts/batch_eval.py --eval-set quick_16 --steps 100  # 快速评测集 (16 eps, baseline SR≈50%)
 ```
 
 验证仿真服务器：
@@ -69,7 +70,7 @@ curl http://localhost:5100/health
 curl http://localhost:5100/scenes
 ```
 
-室内 VLM 推理默认连接 `http://10.100.0.1:8000/v1`（代码中 `VLM_API_URL` 常量）。
+室内 VLM 推理默认连接 `http://localhost:8004/v1`（代码中 `VLM_API_URL` 常量）。
 
 ## Conda 环境
 
@@ -270,6 +271,14 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 | `scripts/utils/update_refs.py` | 参考文献更新工具 | 任意 |
 | `scripts/reference/app.py` | VLN Demo 参考脚本（外部依赖，不可直接运行） | -- |
 | `docs/proposal/gen_framework_v3.py` | 生成 Framework_v3.png 架构图 | 任意（matplotlib） |
+
+## 评测集
+
+评测集配置存放在 `src/scripts/eval_sets/` 下，JSON 格式，通过 `--eval-set` 参数加载：
+
+| 名称 | Episodes | 场景数 | Baseline SR | 用途 |
+|------|----------|--------|-------------|------|
+| `quick_16` | 16 | 11 | ≈50% | 快速迭代验证（8 成功 + 8 near-miss 失败） |
 
 ## 文件约定
 

@@ -53,3 +53,7 @@ output.log
 # OS
 .DS_Store
 Thumbs.db
+mobileclip_blt.ts
+
+# models
+models/*

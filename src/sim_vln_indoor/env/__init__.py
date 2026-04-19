@@ -11,11 +11,8 @@ Indoor Simulation Package
 """
 
 from .habitat_utils import (
-    SENSOR_CONFIGS,
     SCENE_DIR,
     VLM_API_URL,
-    create_sim,
-    make_sensor_spec,
     velocity_to_action,
     discover_scenes,
 )

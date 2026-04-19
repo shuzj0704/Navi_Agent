@@ -192,6 +192,9 @@ python src/scripts/batch_eval.py \
   --max-episodes 5 \
   --steps 100 \
   --save-vis
+
+# 快速评测集 (16 eps, baseline SR≈50%)
+python src/scripts/batch_eval.py --eval-set quick_16 --steps 100
 ```
 
 ### 3.3 nav_main.py 参数
@@ -217,6 +220,7 @@ python src/scripts/batch_eval.py \
 | `--split` | `val_seen` | 数据集分割 (train/val_seen/val_unseen/test) |
 | `--max-episodes` | None | 最大 episode 数 |
 | `--episode-ids` | None | 指定 episode ID (逗号分隔) |
+| `--eval-set` | None | 评测集配置 (名称或 JSON 路径, e.g. `quick_16`) |
 | `--steps` | 100 | 每个 episode 步数上限 |
 | `--mock` | False | 不调 VLM |
 | `--save-vis` | False | 保存可视化视频 |
@@ -280,6 +284,14 @@ xvfb-run -a ./python.sh src/sim_vln_outdoor/scripts/vlm_gps_nav.py \
 ```
 
 输出在 `data/urbanverse/vlm_gps_nav/<timestamp>/`：`frames/` + `vlm_io.jsonl` + `trajectory.jsonl` + `summary.json` + `nav.mp4`。
+
+用 [serve_replay.py](scripts/utils/serve_replay.py) 在浏览器里回放：
+
+```bash
+python scripts/utils/serve_replay.py --base-dir data/urbanverse/vlm_gps_nav
+# 默认 http://localhost:8501，左侧 FPV + 右侧俯视轨迹 + VLM prompt/reply
+# 快捷键：Space 播放/暂停，←/→ 逐帧，Home/End 首尾，0-9 按百分比跳转
+```
 
 ### 4.4 Isaac Sim 环境配置
 

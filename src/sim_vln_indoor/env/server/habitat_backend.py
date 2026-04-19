@@ -1,10 +1,18 @@
 """
 Habitat 仿真后端
-================
+===============
 线程安全的 Habitat-sim 封装, 供 FastAPI 端点调用。
 """
 
 import os
+
+# 必须先于任何 OpenGL/EGL 调用设置环境变量
+# 使用 xvfb-run 已经处理了显示，但确保使用软件渲染
+os.environ.setdefault("__GLX_VENDOR_LIBRARY_NAME", "mesa")
+os.environ.setdefault("EGL_VENDOR_LIBRARY_FILENAMES", "")
+os.environ.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
+os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
+
 import math
 import threading
 import numpy as np
@@ -55,6 +63,7 @@ class HabitatBackend:
             sim_cfg.scene_id = scene_path
             sim_cfg.enable_physics = self.config.enable_physics
             sim_cfg.gpu_device_id = self.config.gpu_device_id
+            sim_cfg.create_renderer = False  # Headless mode
 
             sensors = [
                 self._make_sensor_spec(name, scfg)
@@ -62,6 +71,21 @@ class HabitatBackend:
             ]
             agent_cfg = habitat_sim.agent.AgentConfiguration()
             agent_cfg.sensor_specifications = sensors
+            # 覆盖默认动作幅度: 左/右转 = 25°, 前进保持 0.25m
+            agent_cfg.action_space = {
+                "move_forward": habitat_sim.agent.ActionSpec(
+                    "move_forward",
+                    habitat_sim.agent.ActuationSpec(amount=0.25),
+                ),
+                "turn_left": habitat_sim.agent.ActionSpec(
+                    "turn_left",
+                    habitat_sim.agent.ActuationSpec(amount=25.0),
+                ),
+                "turn_right": habitat_sim.agent.ActionSpec(
+                    "turn_right",
+                    habitat_sim.agent.ActuationSpec(amount=25.0),
+                ),
+            }
 
             self._sim = habitat_sim.Simulator(
                 habitat_sim.Configuration(sim_cfg, [agent_cfg])

@@ -1,80 +1,19 @@
 """
-Habitat 仿真工具函数
-====================
-从 nav_main.py 提取的传感器配置、仿真器创建、动作转换等工具。
-独立于主循环, 供 nav_main.py 和 batch_eval.py 共享。
+Habitat 仿真客户端工具
+======================
+仅保留客户端用得到的辅助 (动作转换、场景发现、路径常量)。
+传感器规格统一由仿真服务器通过 GET /sensors 提供 (源头是
+`env/config/sim_server.yaml`), 客户端不再硬编码。
 """
 
 import os
-import math
-import habitat_sim
 import numpy as np
 
-
-# ========== 传感器配置 ==========
-
-_CAM_BASE = {
-    "position": [0.0, 0.5, 0.0],
-    "pitch": 0.0,
-    "roll": 0.0,
-    "hfov": 120,
-    "width": 640,
-    "height": 480,
-}
-
-SENSOR_CONFIGS = {
-    # 四视角 RGB (VLM 输入)
-    "front_rgb":   {**_CAM_BASE, "type": "COLOR", "yaw": 0.0},
-    "left_rgb":    {**_CAM_BASE, "type": "COLOR", "yaw": 90.0},
-    "right_rgb":   {**_CAM_BASE, "type": "COLOR", "yaw": -90.0},
-    "back_rgb":    {**_CAM_BASE, "type": "COLOR", "yaw": 180.0},
-    # 前视深度 (DWA 目标点反投影)
-    "front_depth": {**_CAM_BASE, "type": "DEPTH", "yaw": 0.0},
-    # 低位深度 (DWA 障碍物点云)
-    "low_depth": {
-        "type": "DEPTH",
-        "position": [0.0, 0.5, 0.0],
-        "pitch": 0.0, "yaw": 0.0, "roll": 0.0,
-        "hfov": 90, "width": 640, "height": 480,
-    },
-}
 
 # ========== 路径常量 ==========
 
 SCENE_DIR = "data/scene_data/mp3d"
-VLM_API_URL = "http://10.100.0.1:8000/v1"
-
-
-# ========== Habitat 初始化 ==========
-
-def make_sensor_spec(uuid, cfg):
-    """从配置字典创建 Habitat 传感器"""
-    spec = habitat_sim.CameraSensorSpec()
-    spec.uuid = uuid
-    spec.sensor_type = getattr(habitat_sim.SensorType, cfg["type"])
-    spec.resolution = [cfg["height"], cfg["width"]]
-    spec.hfov = cfg["hfov"]
-    spec.position = cfg["position"]
-    spec.orientation = [
-        math.radians(cfg["pitch"]),
-        math.radians(cfg["yaw"]),
-        math.radians(cfg["roll"]),
-    ]
-    return spec
-
-
-def create_sim(scene_path):
-    """创建带全部传感器的仿真器"""
-    sim_cfg = habitat_sim.SimulatorConfiguration()
-    sim_cfg.scene_id = scene_path
-    sim_cfg.enable_physics = False
-    sim_cfg.gpu_device_id = 0
-
-    sensors = [make_sensor_spec(k, v) for k, v in SENSOR_CONFIGS.items()]
-
-    agent_cfg = habitat_sim.agent.AgentConfiguration()
-    agent_cfg.sensor_specifications = sensors
-    return habitat_sim.Simulator(habitat_sim.Configuration(sim_cfg, [agent_cfg]))
+VLM_API_URL = "http://localhost:8004/v1"
 
 
 # ========== 运动执行 ==========
