@@ -336,6 +336,9 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 | 名称 | Episodes | 场景数 | Baseline SR | 用途 |
 |------|----------|--------|-------------|------|
 | `quick_16` | 16 | 11 | ≈50% | 快速迭代验证（8 成功 + 8 near-miss 失败） |
+| `medium_50` | 50 | 15 | ≈50% | 中规模评测（25 成功 + 25 失败, 源 `val_seen_20260415_013646`, 噪声 ±2pp 级别） |
+
+`medium_50` 由 `src/scripts/build_eval_set_50.py` 从 0415 参考评测结果重新生成; 场景按成功/失败比例均衡采样, 覆盖 short/mid/long 三档 geodesic 距离。
 
 ## 文件约定
 
