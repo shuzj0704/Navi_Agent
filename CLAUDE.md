@@ -64,6 +64,24 @@ python src/scripts/batch_eval.py --split val_seen --max-episodes 5 --steps 100
 python src/scripts/batch_eval.py --eval-set quick_16 --steps 100  # 快速评测集 (16 eps, baseline SR≈50%)
 ```
 
+### System1 消融开关
+
+`batch_eval.py` 强制 `--no-planner` 表示只跑快系统。通过以下 CLI 可切换 `AblationConfig`
+(定义在 `src/naviagent/vlm/vlm_navigator.py`, 默认 = 当前主干行为):
+
+| Flag | 取值 | 含义 |
+|------|------|------|
+| `--views` | `front,left,right` (默认) / `front` / `front,left,right,back` | RGB 输入视角, back 需在 `sim_server.yaml` 启用 `back_rgb` 并重启仿真 |
+| `--output-mode` | `direction` (默认) / `pixel` | VLM 输出 F/L/R/STOP 或 v,vx,vy 像素目标 (pixel 模式复用老 DWA 反投影路径) |
+| `--semantic-mode` | `text` (默认) / `image` / `none` | 语义图作为结构化文字 / 俯视图片 / 不传 |
+| `--image-memory-len N` | 默认 8 | 前视图记忆长度 (0 禁用), 长度采样阈值见 `FRONT_MEMORY_MIN_DIST/_ANGLE` |
+| `--action-history-len N` | 默认 20 | 决策动作历史长度 (0 禁用) |
+| `--pose-history-len N` | 默认 20 | 位姿历史长度 (0 禁用) |
+| `--ablation-tag NAME` | — | 结果目录后缀, 便于 diff 多次 run |
+
+批量跑全部消融实验: `bash src/scripts/run_ablation_matrix.sh` — 14 个配置, 跑完用
+`python src/scripts/aggregate_ablation.py` 汇总成 `output/eval/ablation_0419_report.md`。
+
 验证仿真服务器：
 ```bash
 curl http://localhost:5100/health
