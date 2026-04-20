@@ -151,6 +151,8 @@ conda activate naviagent
 python src/scripts/test_sam3.py --image path/to/img.jpg --classes "chair,table,sofa"
 ```
 
+SAM3 image backbone 必须在 `torch.autocast(device_type="cuda", dtype=torch.bfloat16)` 下推理（否则 ViT MLP 报 `mat1 BFloat16 vs mat2 Float`），且 masks/boxes/scores 以 BF16 返回，`.numpy()` 前需 `.float()`；`Sam3Segmentor.segment()` 已封装这两处，外部调用无需关心。
+
 ## 机器与远程访问
 
 | 角色 | 主机 | 用途 |

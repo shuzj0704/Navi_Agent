@@ -14,6 +14,7 @@ https://huggingface.co/facebook/sam3
 
 import numpy as np
 import cv2
+import torch
 from PIL import Image
 
 from .yoloe_segmentor import Segment
@@ -74,35 +75,42 @@ class Sam3Segmentor:
         rgb_pil = Image.fromarray(cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB))
         H, W = rgb.shape[:2]
 
-        state = self.processor.set_image(rgb_pil)
+        autocast_ctx = (
+            torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+            if str(self.device).startswith("cuda")
+            else torch.autocast(device_type="cpu", dtype=torch.bfloat16, enabled=False)
+        )
 
-        segments = []
-        for label in self.classes:
-            state = self.processor.set_text_prompt(prompt=label, state=state)
+        with torch.inference_mode(), autocast_ctx:
+            state = self.processor.set_image(rgb_pil)
 
-            masks = state.get("masks")
-            boxes = state.get("boxes")
-            scores = state.get("scores")
-            if masks is None or len(masks) == 0:
-                continue
+            segments = []
+            for label in self.classes:
+                state = self.processor.set_text_prompt(prompt=label, state=state)
 
-            masks_np = masks.squeeze(1).cpu().numpy().astype(bool)   # (N, H, W)
-            boxes_np = boxes.cpu().numpy()                            # (N, 4) xyxy
-            scores_np = scores.cpu().numpy()                          # (N,)
-
-            for mask, box, score in zip(masks_np, boxes_np, scores_np):
-                if mask.shape != (H, W):
-                    mask = cv2.resize(
-                        mask.astype(np.uint8), (W, H),
-                        interpolation=cv2.INTER_NEAREST,
-                    ).astype(bool)
-                if int(mask.sum()) < self.min_mask_pixels:
+                masks = state.get("masks")
+                boxes = state.get("boxes")
+                scores = state.get("scores")
+                if masks is None or len(masks) == 0:
                     continue
-                x1, y1, x2, y2 = box.tolist()
-                segments.append(Segment(
-                    mask=mask, label=label,
-                    confidence=float(score),
-                    bbox=(int(x1), int(y1), int(x2), int(y2)),
-                ))
+
+                masks_np = masks.squeeze(1).float().cpu().numpy().astype(bool)   # (N, H, W)
+                boxes_np = boxes.float().cpu().numpy()                            # (N, 4) xyxy
+                scores_np = scores.float().cpu().numpy()                          # (N,)
+
+                for mask, box, score in zip(masks_np, boxes_np, scores_np):
+                    if mask.shape != (H, W):
+                        mask = cv2.resize(
+                            mask.astype(np.uint8), (W, H),
+                            interpolation=cv2.INTER_NEAREST,
+                        ).astype(bool)
+                    if int(mask.sum()) < self.min_mask_pixels:
+                        continue
+                    x1, y1, x2, y2 = box.tolist()
+                    segments.append(Segment(
+                        mask=mask, label=label,
+                        confidence=float(score),
+                        bbox=(int(x1), int(y1), int(x2), int(y2)),
+                    ))
 
         return segments
