@@ -1,22 +1,24 @@
 #!/bin/bash
-# 0419 消融实验矩阵 (quick_16 / 仅 System1 / 100 steps).
+# 消融实验矩阵 (medium_50 / 仅 System1 / 100 steps).
 # 每次 run 的结果目录: output/eval/val_seen_<tag>_<timestamp>/
-# 单次 ~15 min, 合计 14 次 ~3.5 h.
+# 单次 ~45 min (baseline), img16 可能 ~5h, 合计 14 次 ~11 h.
 #
 # 用法:
 #   bash src/scripts/run_ablation_matrix.sh                 # 跑全部
 #   bash src/scripts/run_ablation_matrix.sh phase1          # 仅 Phase 1
 #   bash src/scripts/run_ablation_matrix.sh phase2          # 仅 Phase 2
 #   bash src/scripts/run_ablation_matrix.sh <tag1> <tag2>   # 跑指定 tag
+#   EVAL_SET=quick_16 bash src/scripts/run_ablation_matrix.sh   # 临时换评测集
 
 set -u
 cd "$(dirname "$0")/../.."
 
+EVAL_SET="${EVAL_SET:-medium_50}"
 EVAL="conda run -n naviagent --no-capture-output python src/scripts/batch_eval.py \
   --vlm-config src/vlm_server/configs/nav_vlm.yaml \
-  --eval-set quick_16 --steps 100"
+  --eval-set $EVAL_SET --steps 100"
 
-LOG_DIR="output/eval/ablation_0419_logs"
+LOG_DIR="output/eval/ablation_${EVAL_SET}_logs"
 mkdir -p "$LOG_DIR"
 
 # tag -> extra flags

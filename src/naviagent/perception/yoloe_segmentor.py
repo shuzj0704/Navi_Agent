@@ -37,7 +37,7 @@ class YOLOESegmentor:
         "toilet", "sink", "bed", "shelf", "cabinet", "window", "TV",
     ]
 
-    def __init__(self, model_path="models/yoloe-11l-seg.pt", classes=None, conf=0.15):
+    def __init__(self, model_path="models/yoloe-11l-seg.pt", classes=None, conf=0.3):
         import os
         if not os.path.exists(model_path):
             raise FileNotFoundError(

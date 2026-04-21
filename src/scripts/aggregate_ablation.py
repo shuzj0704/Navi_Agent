@@ -83,9 +83,11 @@ def main():
 
     # markdown
     lines = []
-    lines.append("# 0419 消融实验结果 (quick_16, System1 only)")
+    eval_set = baseline[2].get("eval_set") if baseline else "(unknown)"
+    n_ep = baseline[1].get("n_episodes", "?") if baseline else "?"
+    lines.append(f"# 消融实验结果 ({eval_set}, System1 only)")
     lines.append("")
-    lines.append("**数据**: quick_16 评测集 (16 episodes / 11 scenes, val_seen)  ")
+    lines.append(f"**数据**: `{eval_set}` 评测集 ({n_ep} episodes, val_seen)  ")
     lines.append("**配置**: 仅快系统 (System1, --no-planner)；每 episode 上限 100 步；"
                  "VLM = Qwen3-VL-8B 通过 vLLM 服务")
     lines.append("")
