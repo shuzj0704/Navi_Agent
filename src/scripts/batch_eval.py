@@ -34,6 +34,7 @@ import cv2
 from naviagent.perception import get_camera_intrinsics, YOLOESegmentor, SemanticMapper, SimClientObsReader
 from naviagent.decision import DWAPlanner, TurnController, VLMNavigator, TaskOrchestrator, NavigationEngine
 from naviagent.vlm.vlm_config import load_nav_vlm_config
+from naviagent.vlm.vlm_navigator import AblationConfig
 from naviagent.common import draw_debug_frame, build_panel_info
 from sim_vln_indoor.env import SimClient
 
@@ -223,7 +224,38 @@ def main():
     parser.add_argument("--plan-map-scale", type=int, default=25)
     parser.add_argument("--vlm-config", type=str, default=None,
                         help="VLM 配置 YAML 路径 (e.g. src/vlm_server/configs/nav_vlm.yaml)")
+    # ---- 消融实验 flags ----
+    parser.add_argument("--views", type=str, default="front,left,right",
+                        help="输入视角 (逗号分隔): front/left/right/back 的子集, "
+                             "如 'front' / 'front,left,right' / 'front,left,right,back'")
+    parser.add_argument("--output-mode", type=str, default="direction",
+                        choices=["direction", "pixel"],
+                        help="VLM 输出: direction (F/L/R/STOP) 或 pixel (v,vx,vy)")
+    parser.add_argument("--semantic-mode", type=str, default="text",
+                        choices=["none", "text", "image"],
+                        help="语义地图模态: 不传 / 结构化文字 / 俯视图片")
+    parser.add_argument("--image-memory-len", type=int, default=8,
+                        help="历史前视图记忆条数 (0 = 禁用)")
+    parser.add_argument("--action-history-len", type=int, default=20,
+                        help="历史决策记忆条数 (0 = 禁用)")
+    parser.add_argument("--pose-history-len", type=int, default=20,
+                        help="历史位姿记忆条数 (0 = 禁用)")
+    parser.add_argument("--ablation-tag", type=str, default=None,
+                        help="结果目录后缀标签, 便于对比")
     args = parser.parse_args()
+
+    # 只跑快系统: 强制关闭 orchestrator
+    args.no_planner = True
+
+    ablation = AblationConfig(
+        views=tuple(v.strip() for v in args.views.split(",") if v.strip()),
+        output_mode=args.output_mode,
+        semantic_mode=args.semantic_mode,
+        image_memory_len=args.image_memory_len,
+        action_history_len=args.action_history_len,
+        pose_history_len=args.pose_history_len,
+    )
+    print(f"[Ablation] {ablation}")
 
     vlm_cfg = load_nav_vlm_config(args.vlm_config)
 
@@ -261,11 +293,29 @@ def main():
 
     dwa = DWAPlanner()
     turn_ctrl = TurnController()
-    vlm = None if args.mock else VLMNavigator(config=vlm_cfg.system1)
-
+    vlm = None if args.mock else VLMNavigator(
+        config=vlm_cfg.system1, ablation=ablation
+    )
+    if vlm is not None:
+        print(f"System1 VLM 已连接: {vlm.api_url} model={vlm.model}")
     from datetime import datetime
-    eval_dir = os.path.join(args.output_dir, f"{args.split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    tag = args.ablation_tag or ablation.label()
+    eval_dir = os.path.join(
+        args.output_dir,
+        f"{args.split}_{tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+    )
     os.makedirs(eval_dir, exist_ok=True)
+    with open(os.path.join(eval_dir, "ablation.json"), "w") as af:
+        json.dump({
+            "views": list(ablation.views),
+            "output_mode": ablation.output_mode,
+            "semantic_mode": ablation.semantic_mode,
+            "image_memory_len": ablation.image_memory_len,
+            "action_history_len": ablation.action_history_len,
+            "pose_history_len": ablation.pose_history_len,
+            "steps": args.steps,
+            "eval_set": args.eval_set,
+        }, af, indent=2, ensure_ascii=False)
 
     all_metrics = []
     total_t0 = time.time()

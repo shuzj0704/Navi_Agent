@@ -171,6 +171,57 @@ class HabitatBackend:
             agent.set_state(state)
             return self._get_agent_state_data()
 
+    def random_agent_state(self, seed: Optional[int] = None) -> AgentStateData:
+        """
+        在 navmesh 上均匀采样一个可行点 + 随机 yaw, 传送 agent 过去。
+
+        由 pathfinder.get_random_navigable_point() 保证点一定落在 navmesh 内,
+        不会卡墙/卡空气。需要场景 .navmesh 已加载, 否则抛 RuntimeError。
+        """
+        with self._lock:
+            self._ensure_sim()
+            if not self._navmesh_loaded:
+                raise RuntimeError(
+                    "Navmesh 未加载, 无法随机起点。请确认场景目录下存在 .navmesh 文件。"
+                )
+
+            rng = np.random.default_rng(seed)
+            pathfinder = self._sim.pathfinder
+
+            # pathfinder.get_random_navigable_point 自身带内部 RNG, 无法 seed。
+            # 这里用 seeded numpy RNG 做 rejection 采样 snap 到 navmesh,
+            # 保证 seed 可复现。
+            pos = None
+            for _ in range(200):
+                if seed is None:
+                    p = pathfinder.get_random_navigable_point()
+                else:
+                    # bounds: (min_xyz, max_xyz)
+                    lo, hi = pathfinder.get_bounds()
+                    cand = np.array([
+                        rng.uniform(lo[0], hi[0]),
+                        rng.uniform(lo[1], hi[1]),
+                        rng.uniform(lo[2], hi[2]),
+                    ], dtype=np.float32)
+                    p = pathfinder.snap_point(cand)
+                if p is not None and not np.any(np.isnan(np.asarray(p))):
+                    pos = np.asarray(p, dtype=np.float32)
+                    break
+            if pos is None:
+                raise RuntimeError("无法在 navmesh 上采到合法点 (200 次重试都失败)")
+
+            # 随机 yaw: 绕 Habitat Y 轴 (竖直向上) 的旋转
+            yaw = float(rng.uniform(-math.pi, math.pi))
+            qw = math.cos(yaw / 2.0)
+            qy = math.sin(yaw / 2.0)
+
+            agent = self._sim.get_agent(0)
+            state = agent.get_state()
+            state.position = pos
+            state.rotation = np.quaternion(qw, 0.0, qy, 0.0)
+            agent.set_state(state)
+            return self._get_agent_state_data()
+
     def list_scenes(self) -> List[dict]:
         """列出可用场景。"""
         scenes = []

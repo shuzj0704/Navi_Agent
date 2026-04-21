@@ -19,6 +19,7 @@ os.chdir(_PROJECT_ROOT)
 
 import numpy as np
 import cv2
+import json
 import time
 
 from naviagent.perception import get_camera_intrinsics, YOLOESegmentor, SemanticMapper, SimClientObsReader
@@ -32,6 +33,120 @@ DEFAULT_INSTRUCTION = "探索这个环境并找到通往室外的可能的出口
 DEFAULT_SIM_URL = "http://localhost:5100"
 
 # 传感器配置由仿真服务器提供 (GET /sensors), 客户端不再硬编码。
+
+
+def _to_jsonable(obj):
+    """ndarray → list / numpy 标量 → Python 标量, 便于 json.dumps。"""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.floating, np.integer)):
+        return obj.item()
+    if isinstance(obj, (list, tuple)):
+        return [_to_jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _to_jsonable(v) for k, v in obj.items()}
+    return obj
+
+
+def save_history(vis_dir, args, scene_name, start_pose, end_pose,
+                 done_reason, steps_done, engine, vlm, orchestrator, mapper):
+    """
+    将本次 run 的全部运行时状态写到 <vis_dir>/history/, 用于事后复现 / 调试。
+
+    文件清单:
+      history/run_meta.json        — args, scene, instruction, 起止位姿, done_reason, 时序统计
+      history/trajectory.json      — [(x,y), ...] 全轨迹
+      history/vlm_history.json     — System1 VLM 最近 N 次决策 (view/vx/vy/pose/step)
+      history/orchestrator.json    — System2 状态 (subtask/completed/plan_count/last_reason)
+      history/semantic_objects.json— 最终语义地图 (Object3D 列表)
+      history/vlm_front_memory/    — VLM 前视记忆快照 (JPEG) + index.json 元信息
+    """
+    hist_dir = os.path.join(vis_dir, "history")
+    os.makedirs(hist_dir, exist_ok=True)
+
+    # --- run_meta.json ---
+    meta = {
+        "scene": scene_name,
+        "instruction": args.instruction,
+        "args": {k: _to_jsonable(v) for k, v in vars(args).items()},
+        "start_pose": _to_jsonable(start_pose),
+        "end_pose": {
+            "nav_x": float(engine.nav.x),
+            "nav_y": float(engine.nav.y),
+            "yaw_rad": float(engine.nav.yaw),
+        } if end_pose is None else _to_jsonable(end_pose),
+        "done_reason": done_reason,
+        "steps_done": int(steps_done),
+        "vlm_call_count": len(engine.vlm_times),
+        "vlm_latency_sec": {
+            "mean": float(np.mean(engine.vlm_times)) if engine.vlm_times else 0.0,
+            "p50": float(np.percentile(engine.vlm_times, 50)) if engine.vlm_times else 0.0,
+            "p95": float(np.percentile(engine.vlm_times, 95)) if engine.vlm_times else 0.0,
+            "max": float(np.max(engine.vlm_times)) if engine.vlm_times else 0.0,
+        },
+    }
+    with open(os.path.join(hist_dir, "run_meta.json"), "w") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+    # --- trajectory.json ---
+    with open(os.path.join(hist_dir, "trajectory.json"), "w") as f:
+        json.dump([[float(x), float(y)] for x, y in engine.trajectory], f, indent=2)
+
+    # --- vlm_history.json + front_memory ---
+    if vlm is not None:
+        vlm_hist = [_to_jsonable(h) for h in vlm.history]
+        with open(os.path.join(hist_dir, "vlm_history.json"), "w") as f:
+            json.dump(vlm_hist, f, ensure_ascii=False, indent=2)
+
+        mem_dir = os.path.join(hist_dir, "vlm_front_memory")
+        os.makedirs(mem_dir, exist_ok=True)
+        mem_index = []
+        for i, entry in enumerate(vlm.front_memory):
+            step_tag = entry.get("step", i)
+            jpg_name = f"frame_{i:03d}_step{step_tag}.jpg"
+            cv2.imwrite(os.path.join(mem_dir, jpg_name), entry["bgr"])
+            mem_index.append({
+                "idx": i,
+                "image": jpg_name,
+                "step": step_tag,
+                "x": float(entry.get("x", 0.0)),
+                "y": float(entry.get("y", 0.0)),
+                "yaw_rad": float(entry.get("yaw", 0.0)),
+                "action": _to_jsonable(entry.get("action")),
+            })
+        with open(os.path.join(mem_dir, "index.json"), "w") as f:
+            json.dump(mem_index, f, ensure_ascii=False, indent=2)
+
+    # --- orchestrator.json ---
+    if orchestrator is not None:
+        orch_state = {
+            "full_instruction": orchestrator.full_instruction,
+            "current_subtask": orchestrator.current_subtask,
+            "completed_subtasks": list(orchestrator.completed_subtasks),
+            "plan_count": int(orchestrator._plan_count),
+            "last_reason": orchestrator._last_reason,
+            "is_done": bool(orchestrator.is_done),
+            "stop_override_count": int(orchestrator._stop_override_count),
+        }
+        with open(os.path.join(hist_dir, "orchestrator.json"), "w") as f:
+            json.dump(orch_state, f, ensure_ascii=False, indent=2)
+
+    # --- semantic_objects.json ---
+    if mapper is not None:
+        objs = []
+        for o in mapper.objects:
+            objs.append({
+                "id": int(o.id),
+                "label": o.label,
+                "center": _to_jsonable(o.center),
+                "size": _to_jsonable(o.size),
+                "confidence": float(o.confidence),
+                "color_bgr": list(o.color),
+            })
+        with open(os.path.join(hist_dir, "semantic_objects.json"), "w") as f:
+            json.dump(objs, f, ensure_ascii=False, indent=2)
+
+    print(f"[History] 保存运行状态 → {hist_dir}")
 
 
 def main():
@@ -53,6 +168,10 @@ def main():
     parser.add_argument("--plan-map-scale", type=int, default=25)
     parser.add_argument("--vlm-config", type=str, default=None,
                         help="VLM 配置 YAML 路径 (e.g. src/vlm_server/configs/nav_vlm.yaml)")
+    parser.add_argument("--random-start", action="store_true",
+                        help="场景加载后随机选取 navmesh 上一个可行点 + 随机 yaw 作为起点 (用于测试)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="随机起点的 seed, 设置后结果可复现 (仅在 --random-start 下生效)")
     args = parser.parse_args()
 
     vlm_cfg = load_nav_vlm_config(args.vlm_config)
@@ -73,6 +192,20 @@ def main():
 
     print(f"[Sim] 加载场景: {scene_name}")
     client.load_scene(scene_name=scene_name)
+
+    if args.random_start:
+        start = client.random_agent_state(seed=args.seed)
+        seed_str = f" (seed={args.seed})" if args.seed is not None else ""
+        print(f"[Sim] 随机起点{seed_str}: pos={start.position}")
+    else:
+        start = client.get_agent_state()
+
+    start_pose_log = {
+        "position": _to_jsonable(start.position),
+        "rotation_xyzw": _to_jsonable(start.rotation_xyzw),
+        "random": bool(args.random_start),
+        "seed": args.seed,
+    }
 
     # 初始化组件
     dwa = DWAPlanner()
@@ -168,6 +301,7 @@ def main():
     step = 0
     idle_cap = args.steps * 200
     loop_guard = 0
+    done_reason = "max_steps"
 
     while step < args.steps and loop_guard < idle_cap:
         loop_guard += 1
@@ -192,7 +326,8 @@ def main():
             do_viz(step, result, obs)
 
         if result.done:
-            print(f"[Main] 导航结束: {result.done_reason}")
+            done_reason = result.done_reason or "engine_done"
+            print(f"[Main] 导航结束: {done_reason}")
             break
 
         if result.step_counted:
@@ -201,11 +336,22 @@ def main():
             time.sleep(0.005)
 
     if loop_guard >= idle_cap:
+        done_reason = "loop_guard"
         print(f"[Main] 已达 loop_guard 上限 ({idle_cap}), 结束")
 
     if video_writer:
         video_writer.release()
         print(f"\n可视化视频: {os.path.join(vis_dir, 'nav_debug.mp4')}")
+
+    try:
+        save_history(
+            vis_dir=vis_dir, args=args, scene_name=scene_name,
+            start_pose=start_pose_log, end_pose=None,
+            done_reason=done_reason, steps_done=step,
+            engine=engine, vlm=vlm, orchestrator=orchestrator, mapper=mapper,
+        )
+    except Exception as e:
+        print(f"[History] 保存失败: {e}")
 
     engine.shutdown()
     client.close()

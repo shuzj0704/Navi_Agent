@@ -34,6 +34,9 @@ class AgentStateRequest(BaseModel):
     position: list
     rotation: Optional[list] = None
 
+class RandomAgentRequest(BaseModel):
+    seed: Optional[int] = None
+
 
 # ========== 应用工厂 ==========
 
@@ -301,6 +304,22 @@ def create_app(config_path: str = "config/sim_server.yaml") -> FastAPI:
                 lambda: app.state.backend.set_agent_state(
                     req.position, req.rotation
                 ),
+            )
+        except RuntimeError as e:
+            raise HTTPException(400, str(e))
+        return {
+            "ok": True,
+            "position": state.position,
+            "rotation": state.rotation,
+        }
+
+    @app.post("/agent/random")
+    async def set_agent_random(req: RandomAgentRequest):
+        """在当前场景 navmesh 上随机采样一个可行点 + 随机 yaw, 传送 agent。"""
+        loop = asyncio.get_event_loop()
+        try:
+            state = await loop.run_in_executor(
+                None, lambda: app.state.backend.random_agent_state(req.seed),
             )
         except RuntimeError as e:
             raise HTTPException(400, str(e))

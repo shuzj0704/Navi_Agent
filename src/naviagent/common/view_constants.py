@@ -8,13 +8,14 @@ import math
 
 VIEW_ORDER = ["front", "left", "right"]
 
-VIEW_ABBR = {"front": "f", "left": "l", "right": "r"}
+VIEW_ABBR = {"front": "f", "left": "l", "right": "r", "back": "b"}
 ABBR_TO_VIEW = {v: k for k, v in VIEW_ABBR.items()}
 
 VIEW_LABELS = {
     "front": "[f] 前视图:",
     "left":  "[l] 左视图:",
     "right": "[r] 右视图:",
+    "back":  "[b] 后视图:",
 }
 
 

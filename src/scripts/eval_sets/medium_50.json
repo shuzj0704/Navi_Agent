@@ -1,0 +1,592 @@
+{
+  "name": "medium_50",
+  "description": "中规模评测集: 50 episodes, 基于 val_seen_20260415_013646 评测结果筛选, baseline SR ≈ 50% (25 成功 + 25 失败), 覆盖 15 个场景, geodesic 分布 short/mid/long",
+  "split": "val_seen",
+  "baseline_sr": 50.0,
+  "selection_criteria": "25 成功 + 25 失败 (优先 dist<5.0m 近失败), 场景均衡采样 (先每场景 1 条, 再按 geo 升序轮询), 源 val_seen_20260415_013646",
+  "stats": {
+    "n_scenes": 15,
+    "n_success": 25,
+    "n_fail": 25,
+    "by_geo_bucket": {
+      "long": {
+        "succ": 5,
+        "fail": 10
+      },
+      "mid": {
+        "succ": 15,
+        "fail": 14
+      },
+      "short": {
+        "succ": 5,
+        "fail": 1
+      }
+    },
+    "by_scene_succ_fail": {
+      "29hnd4uzFmX": {
+        "succ": 3,
+        "fail": 3
+      },
+      "759xd9YjKW5": {
+        "succ": 0,
+        "fail": 2
+      },
+      "7y3sRwLe3Va": {
+        "succ": 2,
+        "fail": 1
+      },
+      "8WUmhLawc2A": {
+        "succ": 3,
+        "fail": 3
+      },
+      "D7N2EKCX4Sj": {
+        "succ": 2,
+        "fail": 2
+      },
+      "E9uDoFAP3SH": {
+        "succ": 1,
+        "fail": 2
+      },
+      "JeFG25nYj2p": {
+        "succ": 2,
+        "fail": 2
+      },
+      "PX4nDJXEHrG": {
+        "succ": 2,
+        "fail": 2
+      },
+      "dhjEzFoUFzH": {
+        "succ": 0,
+        "fail": 1
+      },
+      "jh4fc5c5qoQ": {
+        "succ": 2,
+        "fail": 0
+      },
+      "kEZ7cmS4wCh": {
+        "succ": 2,
+        "fail": 0
+      },
+      "r1Q1Z4BcV1o": {
+        "succ": 2,
+        "fail": 1
+      },
+      "r47D5H71a5s": {
+        "succ": 1,
+        "fail": 2
+      },
+      "s8pcmisQ38h": {
+        "succ": 1,
+        "fail": 2
+      },
+      "sT4fr6TAbpF": {
+        "succ": 2,
+        "fail": 2
+      }
+    }
+  },
+  "episode_ids": [
+    1,
+    2,
+    3,
+    6,
+    9,
+    10,
+    11,
+    19,
+    25,
+    26,
+    32,
+    38,
+    47,
+    48,
+    52,
+    53,
+    54,
+    89,
+    90,
+    93,
+    167,
+    242,
+    354,
+    359,
+    368,
+    369,
+    370,
+    376,
+    467,
+    468,
+    474,
+    475,
+    512,
+    513,
+    514,
+    524,
+    525,
+    526,
+    543,
+    558,
+    593,
+    606,
+    638,
+    647,
+    649,
+    650,
+    723,
+    750,
+    762,
+    763
+  ],
+  "episodes": [
+    {
+      "id": 1,
+      "scene": "s8pcmisQ38h",
+      "geo_dist": 10.4,
+      "baseline_success": 0,
+      "baseline_dist": 4.19,
+      "baseline_spl": 0.0,
+      "note": "Walk down the stairs, turn right, and walk towards place with a rug. Wait near t..."
+    },
+    {
+      "id": 2,
+      "scene": "s8pcmisQ38h",
+      "geo_dist": 10.4,
+      "baseline_success": 1,
+      "baseline_dist": 2.98,
+      "baseline_spl": 0.931,
+      "note": "Go down the stairs, and take a right . walk forward towards the leather chairs n..."
+    },
+    {
+      "id": 3,
+      "scene": "s8pcmisQ38h",
+      "geo_dist": 10.4,
+      "baseline_success": 0,
+      "baseline_dist": 3.22,
+      "baseline_spl": 0.0,
+      "note": "Go down the stairs. Turn right.  Go past the glass display case and wait in fron..."
+    },
+    {
+      "id": 6,
+      "scene": "E9uDoFAP3SH",
+      "geo_dist": 11.2,
+      "baseline_success": 0,
+      "baseline_dist": 4.83,
+      "baseline_spl": 0.0,
+      "note": "Exit the room through the only door with an arched, round design above it. Conti..."
+    },
+    {
+      "id": 9,
+      "scene": "r1Q1Z4BcV1o",
+      "geo_dist": 9.5,
+      "baseline_success": 1,
+      "baseline_dist": 2.04,
+      "baseline_spl": 0.558,
+      "note": "Go towards the water fountain and turn left.  Walk into the big room and go to t..."
+    },
+    {
+      "id": 10,
+      "scene": "759xd9YjKW5",
+      "geo_dist": 10.1,
+      "baseline_success": 0,
+      "baseline_dist": 4.35,
+      "baseline_spl": 0.0,
+      "note": "Walk passed the foot of the bed and around to the open door. Walk out of the bed..."
+    },
+    {
+      "id": 11,
+      "scene": "759xd9YjKW5",
+      "geo_dist": 10.1,
+      "baseline_success": 0,
+      "baseline_dist": 3.76,
+      "baseline_spl": 0.0,
+      "note": "Walk around the bed and exit the room going straight to the end of the hallway. ..."
+    },
+    {
+      "id": 19,
+      "scene": "kEZ7cmS4wCh",
+      "geo_dist": 10.0,
+      "baseline_success": 1,
+      "baseline_dist": 1.43,
+      "baseline_spl": 0.572,
+      "note": "Move forward past the white coach and then turn left. Continue up the stairs and..."
+    },
+    {
+      "id": 25,
+      "scene": "7y3sRwLe3Va",
+      "geo_dist": 7.0,
+      "baseline_success": 0,
+      "baseline_dist": 4.56,
+      "baseline_spl": 0.0,
+      "note": "Turn around and walk towards the table with the plant on it.  Turn to the right ..."
+    },
+    {
+      "id": 26,
+      "scene": "7y3sRwLe3Va",
+      "geo_dist": 7.0,
+      "baseline_success": 1,
+      "baseline_dist": 1.15,
+      "baseline_spl": 0.844,
+      "note": "Walk alongside the staircase through the hall towards the backdoor of the home. ..."
+    },
+    {
+      "id": 32,
+      "scene": "dhjEzFoUFzH",
+      "geo_dist": 14.9,
+      "baseline_success": 0,
+      "baseline_dist": 4.61,
+      "baseline_spl": 0.0,
+      "note": "Go left down the hall. Continue to the stairs."
+    },
+    {
+      "id": 38,
+      "scene": "D7N2EKCX4Sj",
+      "geo_dist": 6.4,
+      "baseline_success": 0,
+      "baseline_dist": 3.63,
+      "baseline_spl": 0.0,
+      "note": "Make a left and stand in the door way to the hall. Make another left in the hall..."
+    },
+    {
+      "id": 47,
+      "scene": "jh4fc5c5qoQ",
+      "geo_dist": 12.5,
+      "baseline_success": 1,
+      "baseline_dist": 2.04,
+      "baseline_spl": 0.891,
+      "note": "Walk through the outdoors deck area towards the open door beside the stair leadi..."
+    },
+    {
+      "id": 48,
+      "scene": "jh4fc5c5qoQ",
+      "geo_dist": 12.5,
+      "baseline_success": 1,
+      "baseline_dist": 2.43,
+      "baseline_spl": 1.0,
+      "note": "Walk down the porch steps and walk into the covered porch. Go inside the house a..."
+    },
+    {
+      "id": 52,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 6.7,
+      "baseline_success": 1,
+      "baseline_dist": 2.11,
+      "baseline_spl": 1.0,
+      "note": "Walk straight toward the wall. As you approach the wall, veer to the left, towar..."
+    },
+    {
+      "id": 53,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 6.7,
+      "baseline_success": 1,
+      "baseline_dist": 2.41,
+      "baseline_spl": 1.0,
+      "note": "Walk past the living room into small hall area. Enter the bedroom straight ahead..."
+    },
+    {
+      "id": 54,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 6.7,
+      "baseline_success": 0,
+      "baseline_dist": 4.84,
+      "baseline_spl": 0.0,
+      "note": "walk past the living room into the hallway. take a left then walk into the bedro..."
+    },
+    {
+      "id": 89,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 6.6,
+      "baseline_success": 0,
+      "baseline_dist": 4.4,
+      "baseline_spl": 0.0,
+      "note": "pass in front of couch, turn right after stairs, enter bedroom on far right."
+    },
+    {
+      "id": 90,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 6.6,
+      "baseline_success": 0,
+      "baseline_dist": 3.62,
+      "baseline_spl": 0.0,
+      "note": "Turn right and walk towards the kitchen area. Turn right again and enter the rig..."
+    },
+    {
+      "id": 93,
+      "scene": "r1Q1Z4BcV1o",
+      "geo_dist": 12.6,
+      "baseline_success": 0,
+      "baseline_dist": 3.18,
+      "baseline_spl": 0.0,
+      "note": "Locate the fireplace. Walk in the opposite direction across the big dining room ..."
+    },
+    {
+      "id": 167,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 9.8,
+      "baseline_success": 1,
+      "baseline_dist": 1.97,
+      "baseline_spl": 0.755,
+      "note": "exit the kitchen and go right. At the end of the hall turn right and go into the..."
+    },
+    {
+      "id": 242,
+      "scene": "r47D5H71a5s",
+      "geo_dist": 9.9,
+      "baseline_success": 1,
+      "baseline_dist": 1.52,
+      "baseline_spl": 1.0,
+      "note": "Exit the room then go slightly left and straight until you get to the treadmill ..."
+    },
+    {
+      "id": 354,
+      "scene": "r1Q1Z4BcV1o",
+      "geo_dist": 7.7,
+      "baseline_success": 1,
+      "baseline_dist": 0.35,
+      "baseline_spl": 0.725,
+      "note": "Leave the bathroom and take a right. Enter the main room and walk till you have ..."
+    },
+    {
+      "id": 359,
+      "scene": "r47D5H71a5s",
+      "geo_dist": 8.8,
+      "baseline_success": 0,
+      "baseline_dist": 4.81,
+      "baseline_spl": 0.0,
+      "note": "Walk down the narrow hall to the door and out the door  Walk into the main room ..."
+    },
+    {
+      "id": 368,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 5.7,
+      "baseline_success": 1,
+      "baseline_dist": 1.99,
+      "baseline_spl": 1.0,
+      "note": "Walk out of the playroom and wait by the banister ahead."
+    },
+    {
+      "id": 369,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 5.7,
+      "baseline_success": 1,
+      "baseline_dist": 1.83,
+      "baseline_spl": 0.555,
+      "note": "Leave the playroom and walk straight ahead. Walk to the balcony across from the ..."
+    },
+    {
+      "id": 370,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 5.7,
+      "baseline_success": 1,
+      "baseline_dist": 2.06,
+      "baseline_spl": 1.0,
+      "note": "Exit the room and walk straight, stopping once you reach the guardrail, close to..."
+    },
+    {
+      "id": 376,
+      "scene": "29hnd4uzFmX",
+      "geo_dist": 6.6,
+      "baseline_success": 0,
+      "baseline_dist": 3.85,
+      "baseline_spl": 0.0,
+      "note": "Leave the bedroom and last door on the left. Stop once you enter the room, befor..."
+    },
+    {
+      "id": 467,
+      "scene": "sT4fr6TAbpF",
+      "geo_dist": 9.9,
+      "baseline_success": 0,
+      "baseline_dist": 3.14,
+      "baseline_spl": 0.0,
+      "note": "Walk down the hall and wait in the doorway to the dining area."
+    },
+    {
+      "id": 468,
+      "scene": "sT4fr6TAbpF",
+      "geo_dist": 9.9,
+      "baseline_success": 0,
+      "baseline_dist": 3.62,
+      "baseline_spl": 0.0,
+      "note": "Walk past the bed and continue forward, turning left at the first turn and stop ..."
+    },
+    {
+      "id": 474,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 13.6,
+      "baseline_success": 0,
+      "baseline_dist": 3.75,
+      "baseline_spl": 0.0,
+      "note": "Turn around and walk down the hallway. Turn left and Go into the bedroom on the ..."
+    },
+    {
+      "id": 475,
+      "scene": "8WUmhLawc2A",
+      "geo_dist": 13.6,
+      "baseline_success": 0,
+      "baseline_dist": 4.69,
+      "baseline_spl": 0.0,
+      "note": "Keep walking forward, and turn left at the first corner. Walk straight towards a..."
+    },
+    {
+      "id": 512,
+      "scene": "D7N2EKCX4Sj",
+      "geo_dist": 5.2,
+      "baseline_success": 1,
+      "baseline_dist": 0.55,
+      "baseline_spl": 0.886,
+      "note": "Exit the hotel room and wait in the hall."
+    },
+    {
+      "id": 513,
+      "scene": "D7N2EKCX4Sj",
+      "geo_dist": 5.2,
+      "baseline_success": 0,
+      "baseline_dist": 3.16,
+      "baseline_spl": 0.0,
+      "note": "walk out of the bedroom and stop outside the doorway."
+    },
+    {
+      "id": 514,
+      "scene": "D7N2EKCX4Sj",
+      "geo_dist": 5.2,
+      "baseline_success": 1,
+      "baseline_dist": 0.58,
+      "baseline_spl": 0.791,
+      "note": "walk forward and stop after exiting the room."
+    },
+    {
+      "id": 524,
+      "scene": "PX4nDJXEHrG",
+      "geo_dist": 7.6,
+      "baseline_success": 0,
+      "baseline_dist": 3.15,
+      "baseline_spl": 0.0,
+      "note": "Go into the garage. Turn right and go into the fitness room. From the fitness ro..."
+    },
+    {
+      "id": 525,
+      "scene": "PX4nDJXEHrG",
+      "geo_dist": 7.6,
+      "baseline_success": 0,
+      "baseline_dist": 4.03,
+      "baseline_spl": 0.0,
+      "note": "Go straight into the garage. Turn right and go into the room. Turn right and go ..."
+    },
+    {
+      "id": 526,
+      "scene": "PX4nDJXEHrG",
+      "geo_dist": 7.6,
+      "baseline_success": 1,
+      "baseline_dist": 0.52,
+      "baseline_spl": 0.901,
+      "note": "Walk into the garage and enter the fitness room on the right. Go into the bathro..."
+    },
+    {
+      "id": 543,
+      "scene": "E9uDoFAP3SH",
+      "geo_dist": 12.3,
+      "baseline_success": 1,
+      "baseline_dist": 2.07,
+      "baseline_spl": 1.0,
+      "note": "Go straight until you get to the round table then turn slightly right and walk t..."
+    },
+    {
+      "id": 558,
+      "scene": "JeFG25nYj2p",
+      "geo_dist": 7.0,
+      "baseline_success": 1,
+      "baseline_dist": 0.13,
+      "baseline_spl": 0.922,
+      "note": "Exit the bedroom and go straight through until at the brown double doorway and t..."
+    },
+    {
+      "id": 593,
+      "scene": "E9uDoFAP3SH",
+      "geo_dist": 12.8,
+      "baseline_success": 0,
+      "baseline_dist": 3.52,
+      "baseline_spl": 0.0,
+      "note": "Go straight until you get to three windows. Wait in the window farthest to the l..."
+    },
+    {
+      "id": 606,
+      "scene": "JeFG25nYj2p",
+      "geo_dist": 8.1,
+      "baseline_success": 1,
+      "baseline_dist": 2.64,
+      "baseline_spl": 1.0,
+      "note": "Turn 90 degrees and walk towards the sink and continue towards the refrigerator...."
+    },
+    {
+      "id": 638,
+      "scene": "r47D5H71a5s",
+      "geo_dist": 8.8,
+      "baseline_success": 0,
+      "baseline_dist": 3.35,
+      "baseline_spl": 0.0,
+      "note": "Turn around and go passed the doorway on the right. Go to the second door and tu..."
+    },
+    {
+      "id": 647,
+      "scene": "sT4fr6TAbpF",
+      "geo_dist": 7.4,
+      "baseline_success": 1,
+      "baseline_dist": 0.65,
+      "baseline_spl": 0.863,
+      "note": "Go forward passed the bed. In the hallway stop by the third door on the right."
+    },
+    {
+      "id": 649,
+      "scene": "sT4fr6TAbpF",
+      "geo_dist": 7.4,
+      "baseline_success": 1,
+      "baseline_dist": 0.41,
+      "baseline_spl": 0.562,
+      "note": "Step forward, turn left, move pass the bed and through the door way. Wait at the..."
+    },
+    {
+      "id": 650,
+      "scene": "kEZ7cmS4wCh",
+      "geo_dist": 8.0,
+      "baseline_success": 1,
+      "baseline_dist": 2.03,
+      "baseline_spl": 0.795,
+      "note": "Go towards the pool and stay on the right of it, when you get near the last glas..."
+    },
+    {
+      "id": 723,
+      "scene": "7y3sRwLe3Va",
+      "geo_dist": 11.5,
+      "baseline_success": 1,
+      "baseline_dist": 1.78,
+      "baseline_spl": 0.699,
+      "note": "Exit the room via the door on the left.  After walking into the bigger room, tur..."
+    },
+    {
+      "id": 750,
+      "scene": "PX4nDJXEHrG",
+      "geo_dist": 7.8,
+      "baseline_success": 1,
+      "baseline_dist": 0.51,
+      "baseline_spl": 0.951,
+      "note": "Go straight ahead and enter the bedroom. Turn right then enter the next door and..."
+    },
+    {
+      "id": 762,
+      "scene": "JeFG25nYj2p",
+      "geo_dist": 6.8,
+      "baseline_success": 0,
+      "baseline_dist": 4.8,
+      "baseline_spl": 0.0,
+      "note": "Exit the bathroom and turn right. Wait in the entryway of the bedroom on the rig..."
+    },
+    {
+      "id": 763,
+      "scene": "JeFG25nYj2p",
+      "geo_dist": 6.8,
+      "baseline_success": 0,
+      "baseline_dist": 4.81,
+      "baseline_spl": 0.0,
+      "note": "Exit the bathroom and turn right. Continue around to the right passing by the di..."
+    }
+  ]
+}

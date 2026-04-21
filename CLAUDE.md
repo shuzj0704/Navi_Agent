@@ -33,7 +33,7 @@ NaviAgent -- 跨环境长程导航（CELN）研究项目，目标投稿 CoRL/Neu
 
 ```
 naviagent (任意 Python 环境, 无 habitat 依赖)
-  ├── perception: 观测读取 (ObsBundle, SimClientObsReader) + 点云 + YOLOE 分割 + 语义地图
+  ├── perception: 观测读取 (ObsBundle, SimClientObsReader) + 点云 + YOLOE/SAM3 分割 + 语义地图
   ├── decision:   NavigationEngine + DWA + 转向控制 + TaskOrchestrator
   ├── vlm:        VLMNavigator (System1) + System2Planner
   └── common:     坐标变换 + NavState + 视角常量 + 可视化
@@ -64,6 +64,24 @@ python src/scripts/batch_eval.py --split val_seen --max-episodes 5 --steps 100
 python src/scripts/batch_eval.py --eval-set quick_16 --steps 100  # 快速评测集 (16 eps, baseline SR≈50%)
 ```
 
+### System1 消融开关
+
+`batch_eval.py` 强制 `--no-planner` 表示只跑快系统。通过以下 CLI 可切换 `AblationConfig`
+(定义在 `src/naviagent/vlm/vlm_navigator.py`, 默认 = 当前主干行为):
+
+| Flag | 取值 | 含义 |
+|------|------|------|
+| `--views` | `front,left,right` (默认) / `front` / `front,left,right,back` | RGB 输入视角, back 需在 `sim_server.yaml` 启用 `back_rgb` 并重启仿真 |
+| `--output-mode` | `direction` (默认) / `pixel` | VLM 输出 F/L/R/STOP 或 v,vx,vy 像素目标 (pixel 模式复用老 DWA 反投影路径) |
+| `--semantic-mode` | `text` (默认) / `image` / `none` | 语义图作为结构化文字 / 俯视图片 / 不传 |
+| `--image-memory-len N` | 默认 8 | 前视图记忆长度 (0 禁用), 长度采样阈值见 `FRONT_MEMORY_MIN_DIST/_ANGLE` |
+| `--action-history-len N` | 默认 20 | 决策动作历史长度 (0 禁用) |
+| `--pose-history-len N` | 默认 20 | 位姿历史长度 (0 禁用) |
+| `--ablation-tag NAME` | — | 结果目录后缀, 便于 diff 多次 run |
+
+批量跑全部消融实验: `bash src/scripts/run_ablation_matrix.sh` — 14 个配置, 跑完用
+`python src/scripts/aggregate_ablation.py` 汇总成 `output/eval/ablation_0419_report.md`。
+
 验证仿真服务器：
 ```bash
 curl http://localhost:5100/health
@@ -76,12 +94,34 @@ curl http://localhost:5100/scenes
 
 | 环境名 | Python | 用途 | 激活方式 |
 |--------|--------|------|---------|
+| `naviagent` | 3.12 | 运行 naviagent client 端所有代码（perception/decision/vlm）+ SAM3 + YOLOE；**不含仿真** | `conda activate naviagent` |
 | `habitat` | 3.9 | 室内仿真服务器（Habitat-Sim 0.3.3 + FastAPI + uvicorn） | `conda activate habitat` |
 | `metaurban` | 3.10 | 室外仿真渲染（MetaUrban 0.0.1 + SB3 + PyTorch） | `conda activate metaurban` |
 
-两个环境不可混装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D）。
+仿真环境不可互装（渲染引擎冲突：Habitat 用 EGL/OpenGL，MetaUrban 用 Panda3D），也不要和 `naviagent` 混装。
 
-naviagent 运行在**任意 Python 环境**，依赖：`numpy, opencv-python, httpx, openai, ultralytics`。
+`naviagent` env 关键依赖：
+- torch 2.9.0+cu128 / torchvision 0.24+cu128（RTX 5060 Ti Blackwell 必须 cu128）
+- `sam3`（源码安装自 `third_party/sam3/`，官方仓库 facebookresearch/sam3）
+- `ultralytics`（YOLOE 备用）
+- numpy<2 / opencv-python<4.11（与 SAM3 的 numpy<2 约束兼容）
+- setuptools<81（SAM3 用 `pkg_resources`，Py3.12 + setuptools 81 会移除）
+- openai, httpx, scipy, pyyaml, matplotlib, pillow, timm, einops, pycocotools
+
+搭建步骤（新机器）：
+```bash
+conda create -n naviagent python=3.12 -y
+conda activate naviagent
+pip install torch==2.9.0 torchvision \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple   # pypi.nvidia.com 被墙时必备
+git clone https://github.com/facebookresearch/sam3.git third_party/sam3
+pip install -e third_party/sam3 --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip install "opencv-python<4.11" "numpy<2" "setuptools<81" \
+    openai scipy ultralytics matplotlib einops pycocotools \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+huggingface-cli login   # 需在 HF facebook/sam3 页面同意许可后才能下载权重
+```
 
 ## 模型权重 (git-lfs)
 
@@ -92,7 +132,26 @@ git lfs install
 git lfs pull
 ```
 
-当前模型：`models/yoloe-11l-seg.pt` (68MB, YOLOE 开放词汇分割)
+当前模型：
+- `models/yoloe-11l-seg.pt` (68MB, YOLOE 开放词汇分割)
+- SAM3 checkpoint — 非 lfs，首次调用 `Sam3Segmentor` 时自动从 HF `facebook/sam3` 下载到 `~/.cache/huggingface/`。需先 `huggingface-cli login` 并在网页同意许可。
+
+## 语义分割器选择
+
+`src/naviagent/perception/` 下两个分割器共用 `Segment` 接口，可互换：
+
+| 分割器 | 优势 | 代价 |
+|--------|------|------|
+| `YOLOESegmentor` | 小模型快（68MB，CPU 可跑），在 habitat env 也能用 | 需要预先 `set_classes`，开放词汇泛化弱于 SAM3 |
+| `Sam3Segmentor` (base) | 概念级 open-vocab 零样本分割，mask 质量高 | 848M 参数、必须 cu128 + `naviagent` env，图片级单轮只接受一个 text prompt（内部循环 classes） |
+
+用法示例（图片模式）：
+```bash
+conda activate naviagent
+python src/scripts/test_sam3.py --image path/to/img.jpg --classes "chair,table,sofa"
+```
+
+SAM3 image backbone 必须在 `torch.autocast(device_type="cuda", dtype=torch.bfloat16)` 下推理（否则 ViT MLP 报 `mat1 BFloat16 vs mat2 Float`），且 masks/boxes/scores 以 BF16 返回，`.numpy()` 前需 `.float()`；`Sam3Segmentor.segment()` 已封装这两处，外部调用无需关心。
 
 ## 机器与远程访问
 
@@ -279,6 +338,9 @@ python scripts/serve/chat_test.py --base-url http://localhost:8004/v1 --model qw
 | 名称 | Episodes | 场景数 | Baseline SR | 用途 |
 |------|----------|--------|-------------|------|
 | `quick_16` | 16 | 11 | ≈50% | 快速迭代验证（8 成功 + 8 near-miss 失败） |
+| `medium_50` | 50 | 15 | ≈50% | 中规模评测（25 成功 + 25 失败, 源 `val_seen_20260415_013646`, 噪声 ±2pp 级别） |
+
+`medium_50` 由 `src/scripts/build_eval_set_50.py` 从 0415 参考评测结果重新生成; 场景按成功/失败比例均衡采样, 覆盖 short/mid/long 三档 geodesic 距离。
 
 ## 文件约定
 

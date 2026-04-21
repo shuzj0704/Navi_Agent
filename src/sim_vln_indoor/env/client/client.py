@@ -167,6 +167,18 @@ class SimClient:
         resp.raise_for_status()
         return self._to_agent_state(resp.json())
 
+    def random_agent_state(self, seed: Optional[int] = None) -> AgentState:
+        """
+        在当前场景 navmesh 上随机采样一个可行点 + 随机 yaw, 传送 agent。
+        如果指定 seed, 结果可复现 (便于调试)。
+        """
+        body = {}
+        if seed is not None:
+            body["seed"] = int(seed)
+        resp = self._session.post(f"{self._url}/agent/random", json=body)
+        resp.raise_for_status()
+        return self._to_agent_state(resp.json())
+
     # ---- 生命周期 ----
 
     def close(self):

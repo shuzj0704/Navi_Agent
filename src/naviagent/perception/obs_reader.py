@@ -79,11 +79,12 @@ class HabitatObsReader:
         if fd.ndim == 3:
             fd = fd[:, :, 0]
 
-        # 四视角 BGR
+        # RGB 视图 BGR (back 仅在传感器存在时读取)
         views_bgr = {}
-        for vname in ["front", "left", "right"]:
+        for vname in ["front", "left", "right", "back"]:
             sk = f"{vname}_rgb"
-            views_bgr[vname] = cv2.cvtColor(obs[sk][:, :, :3], cv2.COLOR_RGB2BGR)
+            if sk in obs:
+                views_bgr[vname] = cv2.cvtColor(obs[sk][:, :, :3], cv2.COLOR_RGB2BGR)
 
         return ObsBundle(
             nav_x=nav_x, nav_y=nav_y, nav_yaw=nav_yaw,
@@ -143,11 +144,12 @@ class SimClientObsReader:
         if fd.ndim == 3:
             fd = fd[:, :, 0]
 
-        # 四视角 BGR (SimClient 返回的 RGB 图已经是 BGR)
+        # RGB 视图 (SimClient 返回的 RGB 图已经是 BGR, back 仅在传感器存在时读取)
         views_bgr = {}
-        for vname in ["front", "left", "right"]:
+        for vname in ["front", "left", "right", "back"]:
             sk = f"{vname}_rgb"
-            views_bgr[vname] = obs[sk]
+            if sk in obs:
+                views_bgr[vname] = obs[sk]
 
         return ObsBundle(
             nav_x=nav_x, nav_y=nav_y, nav_yaw=nav_yaw,
