@@ -71,11 +71,14 @@ class GPSVLMNavController(NavController):
         turn_threshold_deg: float = 30.0,
         max_tokens: int = 96,
         enable_thinking: bool = False,
-        output_dir: str | None = None,
+output_dir: str | None = None,
     ):
         from vlm_serve.client import VLMClient
 
         # ── load trajectory ────────────────────────────────────────────
+        import sys
+        sys.stderr.write(f"[DEBUG GPSVLM] base_url={base_url}, model={model}\n")
+        sys.stderr.flush()
         with open(trajectory_path, "r") as f:
             traj = json.load(f)
         self.dense_path = np.asarray(traj["path"], dtype=np.float64)  # (N, 3)
@@ -91,6 +94,8 @@ class GPSVLMNavController(NavController):
         self.start_yaw = _derive_start_yaw(self.dense_path)
 
         # ── vlm client ─────────────────────────────────────────────────
+        if not base_url.endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
         self.client = VLMClient(base_url=base_url, model=model)
 
         self.instruction = instruction

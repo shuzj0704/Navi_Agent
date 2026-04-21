@@ -47,7 +47,7 @@ INITIAL_DECOMPOSITION_HINT = (
 class TaskOrchestrator:
     def __init__(self,
                  full_instruction: str,
-                 api_url: str = "http://10.100.0.1:8000/v1",
+                 api_url: str = "http://localhost:8004/v1",
                  model: str = "qwen3-vl",
                  heartbeat_steps: int = 15,
                  map_size: int = 640,

@@ -80,7 +80,7 @@ class System2Planner:
     """后台线程池封装的 Qwen3.0-VL 规划调用。"""
 
     def __init__(self,
-                 api_url: str = "http://10.100.0.1:8000/v1",
+                 api_url: str = "http://localhost:8004/v1",
                  model: str = "qwen3-vl",
                  temperature: float = 0.3,
                  max_tokens: int = 2048,

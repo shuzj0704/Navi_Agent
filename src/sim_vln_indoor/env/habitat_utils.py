@@ -13,7 +13,7 @@ import numpy as np
 # ========== 路径常量 ==========
 
 SCENE_DIR = "data/scene_data/mp3d"
-VLM_API_URL = "http://10.100.0.1:8000/v1"
+VLM_API_URL = "http://localhost:8004/v1"
 
 
 # ========== 运动执行 ==========
