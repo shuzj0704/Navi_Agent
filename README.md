@@ -208,6 +208,13 @@ python src/scripts/batch_eval.py \
 
 # 快速评测集 (16 eps, baseline SR≈50%)
 python src/scripts/batch_eval.py --eval-set quick_16 --steps 100
+
+# 中规模评测集 (50 eps / 15 scenes)
+python src/scripts/batch_eval.py --eval-set medium_50 --steps 100
+
+# 14 种 System1 消融一键跑 (仅快系统, medium_50)
+bash src/scripts/run_ablation_matrix.sh
+python src/scripts/aggregate_ablation.py   # 汇总成 markdown 报告
 ```
 
 ### 3.3 nav_main.py 参数
