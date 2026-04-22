@@ -4,6 +4,7 @@
 读取 YAML 配置文件, 合并 camera_defaults 到每个传感器。
 """
 
+import getpass
 import yaml
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -66,11 +67,17 @@ def load_config(path: str) -> ServerConfig:
             height=merged.get("height", 640),
         )
 
+    # base_dir 支持按当前系统用户名选择 (便于 nuc / ps 共用同一份配置)
+    by_user = scenes_raw.get("base_dir_by_user", {}) or {}
+    scenes_base_dir = by_user.get(getpass.getuser()) or scenes_raw.get(
+        "base_dir", "data/scene_data/mp3d"
+    )
+
     return ServerConfig(
         host=server_raw.get("host", "0.0.0.0"),
         port=server_raw.get("port", 5100),
         gpu_device_id=server_raw.get("gpu_device_id", 0),
-        scenes_base_dir=scenes_raw.get("base_dir", "data/scene_data/mp3d"),
+        scenes_base_dir=scenes_base_dir,
         default_scene=scenes_raw.get("default_scene"),
         enable_physics=physics_raw.get("enable", False),
         sensors=sensors,

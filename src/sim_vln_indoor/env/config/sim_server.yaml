@@ -4,7 +4,12 @@ server:
   gpu_device_id: -1
 
 scenes:
-  base_dir: "/home/ps/workspace/ll/workspace/Navi_Agent/data/mp3d_ce"
+  # base_dir_by_user: 按当前系统用户名 (getpass.getuser()) 自动选择路径;
+  # 未匹配时 fallback 到 base_dir.
+  base_dir: "data/scene_data/mp3d"
+  base_dir_by_user:
+    nuc: "data/scene_data/mp3d"
+    ps: "/home/ps/workspace/ll/workspace/Navi_Agent/data/mp3d_ce"
   default_scene: null
 
 physics:
