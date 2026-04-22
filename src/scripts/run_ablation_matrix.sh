@@ -65,17 +65,29 @@ for tag in "${TAGS[@]}"; do
   log="$LOG_DIR/${tag}.log"
   echo ">>> [$(date '+%H:%M:%S')] run: $tag   extra='$extra'"
   t0=$(date +%s)
+  # 记录 run 开始时间, 用于筛掉历史旧目录 (防止 rc=1 时误读旧 summary)
+  stamp_before=$(date -u +%s)
   $EVAL --ablation-tag "$tag" $extra >"$log" 2>&1
   rc=$?
   t1=$(date +%s)
   dur=$((t1 - t0))
-  # pull metric
-  sumpath=$(ls -td output/eval/val_seen_${tag}_* 2>/dev/null | head -1)/summary.json
-  if [[ -f "$sumpath" ]]; then
-    sr=$(python3 -c "import json; d=json.load(open('$sumpath')); print(f\"SR={d['success_rate']:.1f}% SPL={d['avg_spl']:.3f} dist={d['avg_distance_to_goal']:.2f}\")")
-    echo "    done rc=$rc dur=${dur}s  $sr"
+  # pull metric — 仅当 rc=0 且找到本次 run 创建的目录 (mtime ≥ 本轮起始时间)
+  if [[ $rc -ne 0 ]]; then
+    tail_err=$(tail -3 "$log" | tr '\n' ' ' | head -c 200)
+    echo "    FAILED rc=$rc dur=${dur}s  log=$log  tail: $tail_err"
   else
-    echo "    done rc=$rc dur=${dur}s  (no summary found)"
+    sumpath=""
+    for d in $(ls -td output/eval/val_seen_${tag}_* 2>/dev/null); do
+      if [[ $(stat -c %Y "$d") -ge $stamp_before ]]; then
+        sumpath="$d/summary.json"; break
+      fi
+    done
+    if [[ -n "$sumpath" && -f "$sumpath" ]]; then
+      sr=$(python3 -c "import json; d=json.load(open('$sumpath')); print(f\"SR={d['success_rate']:.1f}% SPL={d['avg_spl']:.3f} dist={d['avg_distance_to_goal']:.2f}\")")
+      echo "    done rc=$rc dur=${dur}s  $sr"
+    else
+      echo "    done rc=$rc dur=${dur}s  (no fresh summary for this run)"
+    fi
   fi
 done
 
