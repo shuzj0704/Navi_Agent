@@ -1,7 +1,12 @@
 server:
   host: "0.0.0.0"
   port: 5100
-  gpu_device_id: -1
+  # gpu_device_id: Habitat EGL 使用的 GPU 编号 (-1 表示自动选择/无 GPU).
+  # gpu_device_id_by_user 按系统用户名覆盖, 未匹配时 fallback 到 gpu_device_id.
+  gpu_device_id: 0
+  gpu_device_id_by_user:
+    nuc: 0
+    ps: -1
 
 scenes:
   # base_dir_by_user: 按当前系统用户名 (getpass.getuser()) 自动选择路径;

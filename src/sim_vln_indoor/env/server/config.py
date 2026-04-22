@@ -73,10 +73,16 @@ def load_config(path: str) -> ServerConfig:
         "base_dir", "data/scene_data/mp3d"
     )
 
+    gpu_by_user = server_raw.get("gpu_device_id_by_user", {}) or {}
+    user = getpass.getuser()
+    gpu_device_id = gpu_by_user.get(user)
+    if gpu_device_id is None:
+        gpu_device_id = server_raw.get("gpu_device_id", 0)
+
     return ServerConfig(
         host=server_raw.get("host", "0.0.0.0"),
         port=server_raw.get("port", 5100),
-        gpu_device_id=server_raw.get("gpu_device_id", 0),
+        gpu_device_id=gpu_device_id,
         scenes_base_dir=scenes_base_dir,
         default_scene=scenes_raw.get("default_scene"),
         enable_physics=physics_raw.get("enable", False),
